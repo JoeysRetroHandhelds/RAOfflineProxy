@@ -52,8 +52,9 @@ test('Linux hardware identifiers get a readable name', () => {
     assert.equal(deviceLabel('MiyooMini'), 'Miyoo Mini');
     assert.equal(deviceLabel('Anbernic RG35XX-Pro'), 'Anbernic RG35XX-PRO');
     assert.equal(deviceLabel('RGCUBEXX-H'), 'Anbernic RGCUBEXX-H');
-    assert.equal(deviceLabel('AnbernicXX720480NoStick'), 'Anbernic 720x480 (no stick)');
-    assert.equal(deviceLabel('AnbernicXX640480'), 'Anbernic 640x480');
+    assert.equal(deviceLabel('AnbernicXX720480NoStick'), 'Anbernic RG XX');
+    assert.equal(deviceLabel('AnbernicXX640480OneStick'), 'Anbernic RG XX');
+    assert.equal(deviceLabel('AnbernicXX640480'), 'Anbernic RG XX');
     assert.equal(deviceLabel('RG35XX-H'), 'Anbernic RG35XX-H');
     assert.equal(deviceLabel('rg40xx-v'), 'Anbernic RG40XX-V');
 });

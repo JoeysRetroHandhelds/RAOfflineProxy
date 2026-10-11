@@ -92,14 +92,14 @@ const HARDWARE_ALIASES: Record<string, string> = {
     'rgcubexx-h': 'Anbernic RGCUBEXX-H'
 };
 
-/** spruce's platform IDs name a screen layout, not a model ("AnbernicXX720480NoStick"), so they
- *  are shown as that and never guessed into a model. muOS reports Anbernic boards without the
- *  brand ("RG35XX-H"), which would otherwise split from Knulli's "Anbernic RG35XX-H". */
+/** spruce's platform IDs name a screen and stick layout shared by several models
+ *  ("AnbernicXX720480NoStick"), so they are shown as the common family and never guessed into a
+ *  model. muOS reports Anbernic boards without the brand ("RG35XX-H"), which would otherwise
+ *  split from Knulli's "Anbernic RG35XX-H". */
 function knownHardware(label: string): string | undefined {
     const alias = HARDWARE_ALIASES[label.toLowerCase()];
     if (alias) return alias;
-    const spruce = /^AnbernicXX(\d{3})(\d{3})(NoStick)?$/.exec(label);
-    if (spruce) return `Anbernic ${spruce[1]}x${spruce[2]}${spruce[3] ? ' (no stick)' : ''}`;
+    if (/^AnbernicXX\d{6}/.test(label)) return 'Anbernic RG XX';
     if (/^RG\d/i.test(label)) return `Anbernic ${label.toUpperCase()}`;
     const anbernic = /^Anbernic (RG\d\S*)$/i.exec(label);
     if (anbernic) return `Anbernic ${anbernic[1].toUpperCase()}`;
