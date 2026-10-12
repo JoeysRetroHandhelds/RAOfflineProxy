@@ -189,7 +189,11 @@ class LinuxAutostartTests(unittest.TestCase):
 
                 content = startup_script.read_text(encoding="utf-8")
                 self.assertIn('"/run/muos/storage/application/RAOfflineProxy/launch.sh"', content)
-                self.assertIn('boot-reconcile >/dev/null 2>&1 || true', content)
+                self.assertIn(
+                    '"/run/muos/storage/application/RAOfflineProxy/launch.sh" boot-reconcile'
+                    ' >>"/run/muos/storage/application/RAOfflineProxy/data/boot.log" 2>&1',
+                    content,
+                )
                 self.assertEqual(user_init_config.read_text(encoding="utf-8").strip(), "1")
                 self.assertTrue(platform.is_autostart_enabled(config_data))
                 self.assertTrue(
