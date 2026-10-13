@@ -70,7 +70,7 @@ RAOfflineProxy creates this file as a one-time snapshot of `retroarch.cfg` the f
 - The ROMs are in a format RA doesn't recognize (wrong dump, header stripped, etc.)
 - You were offline during the scan
 
-**Fix:** Make sure you are online and retry the scan. Try the **Add ROM** option to add individual files and check the progress message for specific errors.
+**Fix:** Make sure you are online and retry the scan. Check the progress message for specific errors.
 
 ---
 
