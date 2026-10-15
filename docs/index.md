@@ -65,6 +65,10 @@ features:
           <span>WatermelonDS</span>
         </div>
         <div class="supported-platforms__item">
+          <img class="supported-platforms__logo--rounded" src="/seedlessds.png" alt="SeedlessDS logo">
+          <span>SeedlessDS</span>
+        </div>
+        <div class="supported-platforms__item">
           <img class="supported-platforms__logo--rounded" src="/flycast.png" alt="Flycast logo">
           <span>Flycast</span>
         </div>
