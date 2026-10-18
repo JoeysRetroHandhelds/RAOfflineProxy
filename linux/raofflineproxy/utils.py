@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import re
+import sys
+from pathlib import Path
 from urllib.parse import parse_qsl, quote_plus, unquote_plus, urlencode, urlsplit
 
+from . import windows_paths
 from .config import FALLBACK_USER_AGENT, PROXY_UA_TAG
 
 
@@ -130,3 +133,10 @@ def query_params_from_path(path: str) -> dict[str, str]:
 
 def decode_value(value: str) -> str:
     return unquote_plus(value)
+
+
+def write_emulator_config(target: Path, content: str) -> None:
+    if sys.platform == "win32":
+        windows_paths.write_preserving_newlines(target, content)
+    else:
+        target.write_text(content, encoding="utf-8")

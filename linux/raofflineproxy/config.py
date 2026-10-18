@@ -4,8 +4,11 @@ import json
 import logging
 import logging.handlers
 import os
+import sys
 from collections.abc import Callable
 from pathlib import Path
+
+from . import windows_paths
 
 
 DEFAULT_ONION_APP_DIR = Path("/mnt/SDCARD/App/RAOfflineProxy")
@@ -241,6 +244,10 @@ def spruce_setting(name: str) -> str | None:
     return value.strip() or None
 
 
+def running_on_windows() -> bool:
+    return sys.platform == "win32"
+
+
 def resolve_config_dir() -> Path:
     configured = os.environ.get("RAOFFLINEPROXY_CONFIG_DIR")
     if configured:
@@ -268,13 +275,16 @@ def resolve_config_dir() -> Path:
     if running_on_rocknix():
         return DEFAULT_ROCKNIX_CONFIG_DIR
 
+    if running_on_windows():
+        return windows_paths.config_dir()
+
     return Path.home() / ".config" / "raofflineproxy"
 
 
 RA_HOST = "https://retroachievements.org"
 RA_MEDIA_HOST = "https://media.retroachievements.org"
 APP_VERSION = os.environ.get("RAOFFLINEPROXY_APP_VERSION") or "2.2.0-alpha1"
-PROXY_UA_TAG = f"RAOfflineProxy/Linux/{APP_VERSION}"
+PROXY_UA_TAG = f"RAOfflineProxy/{'Windows' if running_on_windows() else 'Linux'}/{APP_VERSION}"
 FALLBACK_USER_AGENT = "RetroArch/1.21.0 (Linux)"
 
 DEFAULT_PROXY_PORT = 8080
@@ -328,6 +338,13 @@ def load_config() -> dict:
 
     if not isinstance(data, dict):
         raise ValueError(f"Invalid config file: {CONFIG_FILE}")
+
+    if running_on_windows():
+        # Points each emulator at its real config, or at a placeholder when it's
+        # turned off or its config doesn't exist yet (e.g. never launched).
+        from .windows_emulators import apply_state
+
+        apply_state(data)
 
     return data
 
@@ -435,6 +452,13 @@ def _retroarch_cfg_lookup() -> tuple[tuple[Callable[[], bool], tuple[Path, ...]]
             (spruce_retroarch_cfg(),) if running_on_spruce() else (),
         ),
         (lambda: Path("/mnt/SDCARD").exists(), tuple(SDCARD_RETROARCH_CFG_CANDIDATES)),
+        # The placeholder comes last, so it's used only when no RetroArch exists.
+        (
+            running_on_windows,
+            (*windows_paths.retroarch_cfg_candidates(), windows_paths.retroarch_placeholder(CONFIG_DIR))
+            if running_on_windows()
+            else (),
+        ),
     )
 
 
@@ -496,6 +520,11 @@ def detect_ppsspp_ini(config_data: dict) -> str | None:
     if DEFAULT_ROCKNIX_PPSSPP_INI.exists():
         return str(DEFAULT_ROCKNIX_PPSSPP_INI)
 
+    if running_on_windows():
+        windows_ini = windows_paths.ppsspp_ini()
+        if windows_ini is not None:
+            return str(windows_ini)
+
     return None
 
 
@@ -510,6 +539,11 @@ def detect_dolphin_config_dir(config_data: dict) -> str | None:
 
     if DEFAULT_ROCKNIX_DOLPHIN_CONFIG_DIR.exists():
         return str(DEFAULT_ROCKNIX_DOLPHIN_CONFIG_DIR)
+
+    if running_on_windows():
+        windows_dir = windows_paths.dolphin_config_dir()
+        if windows_dir is not None:
+            return str(windows_dir)
 
     return None
 

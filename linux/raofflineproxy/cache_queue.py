@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import json
 import math
+import sys
 import time
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -15,6 +16,11 @@ try:
     import fcntl
 except ModuleNotFoundError:
     fcntl = None
+
+if sys.platform == "win32":
+    from . import windows_process
+else:
+    windows_process = None
 
 CACHE_QUEUE_MAX_ATTEMPTS = 3
 DRAIN_LOCK_FILE = CONFIG_DIR / "cache_queue.drain.lock"
@@ -181,6 +187,10 @@ class _FileLock:
 
     @staticmethod
     def _acquire(handle, shared: bool, blocking: bool, should_abort) -> bool:
+        if windows_process is not None:
+            return windows_process.acquire_file_lock(
+                handle, shared, blocking, should_abort, LOCK_POLL_SECONDS
+            )
         if fcntl is None:
             return True
         mode = (fcntl.LOCK_SH if shared else fcntl.LOCK_EX) | fcntl.LOCK_NB
@@ -218,7 +228,9 @@ class _HeldLock:
 
 
 def _unlock(handle) -> None:
-    if fcntl is not None:
+    if windows_process is not None:
+        windows_process.unlock_file(handle.fileno())
+    elif fcntl is not None:
         fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 

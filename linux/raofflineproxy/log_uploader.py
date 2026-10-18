@@ -4,6 +4,7 @@ import io
 import json
 import logging
 import re
+import sys
 import urllib.error
 import urllib.request
 import zipfile
@@ -75,6 +76,8 @@ def _log_file_paths() -> list[Path]:
         menu_sdl_log,
         launch_log,
         menu_stdout_log,
+        # update.log (Windows only) is the in-place updater's transcript.
+        config.CONFIG_DIR / "update.log",
         config.UPDATE_STATUS_FILE,
         config.STATUS_FILE,
     ]
@@ -326,6 +329,11 @@ def device_metadata() -> dict[str, str | list[str]]:
         emulators.append("PPSSPP")
     if emulators:
         metadata["emulator"] = emulators
+
+    if sys.platform == "win32":
+        from .windows_account import metadata_overrides
+
+        metadata.update(metadata_overrides(config_data))
 
     return metadata
 

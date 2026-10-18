@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -111,7 +112,11 @@ def due_folders(storage: Storage, folders: list[str], now: int) -> list[str]:
 
 
 def seen_paths(storage: Storage, folder: str) -> set[str]:
-    prefix = cache_keys.watch_seen(f"{folder.rstrip('/')}/")
+    if sys.platform == "win32":
+        # Scanned paths are built with os.path.join, which uses backslashes there.
+        prefix = cache_keys.watch_seen(folder.rstrip("\\/") + "\\")
+    else:
+        prefix = cache_keys.watch_seen(f"{folder.rstrip('/')}/")
     # The storage prefix lookup is a LIKE match, so "_" and "%" in folder names would match
     # neighbouring folders too; the startswith check keeps it to this folder.
     return {

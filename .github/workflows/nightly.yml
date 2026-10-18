@@ -175,6 +175,19 @@ jobs:
           bash linux/onion/fetch_runtime.sh
           bash linux/onion/fetch_vendor.sh
 
+      # The Windows bundle cross-builds here: zig targets Windows from any host,
+      # and pip fetches the Windows pygame wheel by platform tag.
+      - name: Cache Windows Python and pygame
+        id: windows-vendor-cache
+        uses: actions/cache@v6
+        with:
+          path: linux/windows/vendor
+          key: windows-vendor-${{ hashFiles('linux/windows/fetch_vendor.sh') }}
+
+      - name: Fetch Windows Python and pygame
+        if: steps.windows-vendor-cache.outputs.cache-hit != 'true'
+        run: bash linux/windows/fetch_vendor.sh
+
       - name: Build bundles
         run: |
           bash linux/knulli/build_bundle.sh
@@ -184,6 +197,11 @@ jobs:
           bash linux/muos/build_bundle.sh
           bash linux/rocknix/build_bundle.sh
           bash linux/darkos/build_bundle.sh
+          bash linux/windows/build_bundle.sh
+
+      # testing.json redirects Send Logs and updates in test builds only.
+      - name: Check the Windows bundle is not a test build
+        run: test ! -e linux/windows/dist/RAOfflineProxy/testing.json
 
       - name: Publish nightly-linux
         env:
@@ -197,4 +215,4 @@ jobs:
             "linux/allium/dist/RAOfflineProxy-Allium-v${version}.zip" \
             "linux/muos/dist/RAOfflineProxy-muOS-v${version}.muxapp" \
             "linux/rocknix/dist/RAOfflineProxy-Rocknix-v${version}-Install.sh" \
-            "linux/darkos/dist/RAOfflineProxy-DarkOS-v${version}-Install.sh"
+            "linux/darkos/dist/RAOfflineProxy-DarkOS-v${version}-Install.sh"             "linux/windows/dist/RAOfflineProxy-Windows-v${version}.zip"

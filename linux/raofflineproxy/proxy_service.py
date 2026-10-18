@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from pathlib import Path
 import socket
 import socketserver
+import sys
 import threading
 import time
 from http import HTTPStatus
@@ -209,7 +210,9 @@ def _start_image_downloads(
 
 
 class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    allow_reuse_address = True
+    # Windows SO_REUSEADDR lets a second server bind over a live one, so it is
+    # POSIX-only (see windows_process.make_probe_exclusive).
+    allow_reuse_address = sys.platform != "win32"
     daemon_threads = True
 
 

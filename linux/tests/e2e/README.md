@@ -34,6 +34,29 @@ bugs that model causes.
 `RAOP_E2E_INSTALLER=/path/to/installer.sh` skips the bundle build and tests a
 prebuilt artifact instead.
 
+## Windows
+
+`scenarios/test_windows_lifecycle.py` is the Windows leg. There's no container on Windows, so it runs on the machine itself:
+
+- copies the real Windows bundle to a temp folder, as a user unzips it (the Windows build is portable)
+- redirects `LOCALAPPDATA`, `APPDATA` and `USERPROFILE` to temp folders
+- pre-seeds the folder's `data/` as already set up on this machine, pointing at test copies of the RetroArch and Dolphin configs and using its own proxy port. That way it never runs emulator detection, which would find and patch the real emulators of whoever runs the suite
+- runs the same lifecycle against the fake RA server, with the server's `offline` mode standing in for downing a network interface
+
+On top of the device legs' scenarios, it also covers:
+
+- Start then Stop
+- Start with Windows: finding the folder after a drive-letter change, doing nothing when the folder is gone, and leaving nothing behind when turned off
+- an in-place update from a local fake release
+
+The autostart scenarios write the per-user Run entry and restore what was there.
+
+```bash
+python -m pytest linux/tests/e2e --e2e-device windows
+```
+
+It builds the bundle with `linux/windows/build_bundle.sh` (Git Bash and zig needed), or tests a prebuilt one from `RAOP_E2E_INSTALLER=<unzipped bundle folder>`. In CI it is the `windows-e2e` job, on `windows-latest`, with the same triggers as the device legs.
+
 ## CI
 
 The `linux-e2e` job in `.github/workflows/tests.yml` runs one matrix leg per

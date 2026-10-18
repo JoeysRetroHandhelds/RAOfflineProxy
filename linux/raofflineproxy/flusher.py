@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 import time
 from dataclasses import dataclass
 
@@ -433,6 +434,10 @@ def flush_pending_awards(storage: Storage, config_data: dict) -> FlushOutcome:
             storage.clear_invalid_token()
             flushed += 1
             LOGGER.info("Flush succeeded: achievementId=%s", achievement_id)
+            if sys.platform == "win32":
+                from .windows_history import record_synced_award
+
+                record_synced_award(storage, award)
         elif outcome == "auth_error":
             award["status"] = PENDING_AWARD_STATUS_PENDING
             award["lastError"] = message

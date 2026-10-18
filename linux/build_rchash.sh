@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds libraproxy_rchash.so: rcheevos' rc_hash + the libchdr-backed CHD
+# Builds libraproxy_rchash.so (raproxy_rchash.dll on Windows): rcheevos' rc_hash + the libchdr-backed CHD
 # reader and the LZMA SDK 7z reader (third_party/rcheevos_glue) + libchdr,
 # statically linked into one shared library that rom_hashing.py loads via
 # ctypes. This replaces the standalone libchdr.so the Python hasher used to
@@ -31,60 +31,96 @@ RC="${REPO_DIR}/third_party/rcheevos"
 GLUE="${REPO_DIR}/third_party/rcheevos_glue"
 CHDR="${REPO_DIR}/third_party/libchdr"
 LZMA_SDK="${REPO_DIR}/third_party/lzma-sdk"
-OUT_PATH="${OUT_DIR}/libraproxy_rchash.so"
+case "${TARGET}" in
+  *windows*) OUT_PATH="${OUT_DIR}/raproxy_rchash.dll" ;;
+  *) OUT_PATH="${OUT_DIR}/libraproxy_rchash.so" ;;
+esac
 
 mkdir -p "${OUT_DIR}"
 
-"${COMPILE[@]}" \
-  -shared -Os -fPIC \
-  -DRC_HASH_NO_ENCRYPTED \
-  -DZ7_PPMD_SUPPORT \
-  -DWANT_RAW_DATA_SECTOR=1 \
-  -DWANT_SUBCODE=1 \
-  -DVERIFY_BLOCK_CRC=1 \
-  -I"${RC}/include" \
-  -I"${RC}/src" \
-  -I"${RC}/src/rhash" \
-  -I"${GLUE}" \
-  -I"${GLUE}/shim" \
-  -I"${CHDR}/include" \
-  -I"${CHDR}/src" \
-  -I"${CHDR}/deps/miniz-3.1.2" \
-  -I"${CHDR}/deps/lzma-26.02/include" \
-  -I"${CHDR}/deps/zstd-1.5.7" \
-  -I"${LZMA_SDK}" \
-  -o "${OUT_PATH}" \
-  "${RC}/src/rhash/hash.c" \
-  "${RC}/src/rhash/hash_rom.c" \
-  "${RC}/src/rhash/hash_disc.c" \
-  "${RC}/src/rhash/hash_zip.c" \
-  "${RC}/src/rhash/cdreader.c" \
-  "${RC}/src/rhash/md5.c" \
-  "${RC}/src/rc_compat.c" \
-  "${GLUE}/chd_stream.c" \
-  "${GLUE}/cdfs_chd.c" \
-  "${GLUE}/cdfs_pbp.c" \
-  "${GLUE}/strl_compat.c" \
-  "${GLUE}/sevenzip.c" \
-  "${GLUE}/rchash_glue.c" \
-  "${CHDR}/src/libchdr_bitstream.c" \
-  "${CHDR}/src/libchdr_cdrom.c" \
-  "${CHDR}/src/libchdr_chd.c" \
-  "${CHDR}/src/libchdr_codec_avhuff.c" \
-  "${CHDR}/src/libchdr_codec_cdfl.c" \
-  "${CHDR}/src/libchdr_codec_cdlz.c" \
-  "${CHDR}/src/libchdr_codec_cdzl.c" \
-  "${CHDR}/src/libchdr_codec_cdzs.c" \
-  "${CHDR}/src/libchdr_codec_flac.c" \
-  "${CHDR}/src/libchdr_codec_huff.c" \
-  "${CHDR}/src/libchdr_codec_lzma.c" \
-  "${CHDR}/src/libchdr_codec_zlib.c" \
-  "${CHDR}/src/libchdr_codec_zstd.c" \
-  "${CHDR}/src/libchdr_flac.c" \
-  "${CHDR}/src/libchdr_huffman.c" \
-  "${CHDR}/deps/miniz-3.1.2/miniz.c" \
-  "${CHDR}/deps/lzma-26.02/src/LzmaDec.c" \
-  "${CHDR}/deps/zstd-1.5.7/zstddeclib.c" \
+FLAGS=(
+  -Os -fPIC
+  -DRC_HASH_NO_ENCRYPTED
+  -DZ7_PPMD_SUPPORT
+  -DWANT_RAW_DATA_SECTOR=1
+  -DWANT_SUBCODE=1
+  -DVERIFY_BLOCK_CRC=1
+  -I"${RC}/include"
+  -I"${RC}/src"
+  -I"${RC}/src/rhash"
+  -I"${GLUE}"
+  -I"${GLUE}/shim"
+  -I"${CHDR}/include"
+  -I"${CHDR}/src"
+  -I"${CHDR}/deps/miniz-3.1.2"
+  -I"${CHDR}/deps/lzma-26.02/include"
+  -I"${CHDR}/deps/zstd-1.5.7"
+  -I"${LZMA_SDK}"
+)
+
+SOURCES=(
+  "${RC}/src/rhash/hash.c"
+  "${RC}/src/rhash/hash_rom.c"
+  "${RC}/src/rhash/hash_disc.c"
+  "${RC}/src/rhash/hash_zip.c"
+  "${RC}/src/rhash/cdreader.c"
+  "${RC}/src/rhash/md5.c"
+  "${RC}/src/rc_compat.c"
+  "${GLUE}/chd_stream.c"
+  "${GLUE}/cdfs_chd.c"
+  "${GLUE}/cdfs_pbp.c"
+  "${GLUE}/strl_compat.c"
+  "${GLUE}/sevenzip.c"
+  "${GLUE}/rchash_glue.c"
+  "${CHDR}/src/libchdr_bitstream.c"
+  "${CHDR}/src/libchdr_cdrom.c"
+  "${CHDR}/src/libchdr_chd.c"
+  "${CHDR}/src/libchdr_codec_avhuff.c"
+  "${CHDR}/src/libchdr_codec_cdfl.c"
+  "${CHDR}/src/libchdr_codec_cdlz.c"
+  "${CHDR}/src/libchdr_codec_cdzl.c"
+  "${CHDR}/src/libchdr_codec_cdzs.c"
+  "${CHDR}/src/libchdr_codec_flac.c"
+  "${CHDR}/src/libchdr_codec_huff.c"
+  "${CHDR}/src/libchdr_codec_lzma.c"
+  "${CHDR}/src/libchdr_codec_zlib.c"
+  "${CHDR}/src/libchdr_codec_zstd.c"
+  "${CHDR}/src/libchdr_flac.c"
+  "${CHDR}/src/libchdr_huffman.c"
+  "${CHDR}/deps/miniz-3.1.2/miniz.c"
+  "${CHDR}/deps/lzma-26.02/src/LzmaDec.c"
+  "${CHDR}/deps/zstd-1.5.7/zstddeclib.c"
   "${LZMA_SDK}"/*.c
+)
+
+case "${TARGET}" in
+  *windows*)
+    # zig cc segfaults compiling and linking this many sources in one
+    # invocation on Windows hosts, so compile each one and link separately.
+    OBJ_DIR="$(mktemp -d)"
+    trap 'rm -rf "${OBJ_DIR}"' EXIT
+    # One retry per zig run: its global cache on Windows occasionally fails a
+    # step ("checking cache failed") that succeeds on the next run.
+    zig_retry() { "$@" || "$@"; }
+    i=0
+    for src in "${SOURCES[@]}"; do
+      zig_retry "${COMPILE[@]}" "${FLAGS[@]}" -c "${src}" -o "${OBJ_DIR}/${i}.o"
+      i=$((i + 1))
+    done
+    zig_retry "${COMPILE[@]}" -shared -o "${OUT_PATH}" "${OBJ_DIR}"/*.o
+    # zig also emits an import library named after the first object; ctypes
+    # loads the DLL directly, so it is not needed.
+    rm -f "${OUT_DIR}/0.lib"
+    # Windows has no system libzstd for native_codecs.py's RVZ support, so
+    # build a decode-only zstd.dll from libchdr's vendored single-file source.
+    zig_retry "${COMPILE[@]}" -shared -Os -DZSTD_DLL_EXPORT=1 \
+      -o "${OUT_DIR}/zstd.dll" "${CHDR}/deps/zstd-1.5.7/zstddeclib.c"
+    rm -f "${OUT_DIR}"/*.lib
+    echo "Created ${OUT_DIR}/zstd.dll"
+    ;;
+  *)
+    "${COMPILE[@]}" -shared "${FLAGS[@]}" -o "${OUT_PATH}" "${SOURCES[@]}"
+    ;;
+esac
 
 echo "Created ${OUT_PATH}"

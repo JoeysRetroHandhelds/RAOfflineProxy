@@ -13,6 +13,7 @@ from .config import (
     spruce_setting,
 )
 from .state import clear_patch_state, load_patch_state, save_patch_state
+from .utils import write_emulator_config
 
 HOST_KEY = "cheevos_custom_host"
 ENABLE_KEY = "cheevos_enable"
@@ -46,7 +47,7 @@ def patch_cheevos_append_cfg(cfg_path: str | None, config_data: dict) -> dict | 
     transformed = build_patched_content(original, proxy_address)
 
     if transformed != original:
-        target.write_text(transformed, encoding="utf-8")
+        write_emulator_config(target, transformed)
 
     if _is_proxy_host(previous_host, config_data):
         previous_host = ""
@@ -75,7 +76,7 @@ def clear_cheevos_append_host(cfg_path: str | None, config_data: dict | None) ->
 
     transformed = _upsert_config_value(current, HOST_KEY, "")
     if transformed != current:
-        target.write_text(transformed, encoding="utf-8")
+        write_emulator_config(target, transformed)
 
     return {
         "cfg_path": str(target),
@@ -104,7 +105,7 @@ def revert_cheevos_append_cfg(state: dict | None) -> dict | None:
     )
 
     if transformed != current:
-        target.write_text(transformed, encoding="utf-8")
+        write_emulator_config(target, transformed)
 
     return {
         "cfg_path": str(target),
@@ -375,7 +376,7 @@ def patch_secondary_retroarch_cfgs(
         )
 
         if transformed != original:
-            target.write_text(transformed, encoding="utf-8")
+            write_emulator_config(target, transformed)
 
         # Re-patching an already-patched cfg would otherwise capture the proxy's
         # own host as "previous" and revert to it. Keep the first-captured set.
@@ -440,7 +441,7 @@ def revert_secondary_retroarch_cfgs(
             bool(entry.get("hardcore_was_enabled", False)),
         )
         if transformed != current:
-            target.write_text(transformed, encoding="utf-8")
+            write_emulator_config(target, transformed)
             reverted.append(str(target))
 
     return {"reverted": reverted}
@@ -495,7 +496,7 @@ def patch_retroarch_cfg(cfg_path: str, config_data: dict) -> dict:
     )
 
     if transformed != original:
-        target.write_text(transformed, encoding="utf-8")
+        write_emulator_config(target, transformed)
 
     cheevos_append_state = patch_cheevos_append_cfg(str(target), config_data)
 
@@ -596,7 +597,7 @@ def revert_retroarch_cfg(
     )
 
     if transformed != current:
-        target.write_text(transformed, encoding="utf-8")
+        write_emulator_config(target, transformed)
 
     revert_cheevos_append_cfg((patch_state or {}).get("cheevos_append_cfg"))
     clear_cheevos_append_host(str(target), config_data)
@@ -649,7 +650,7 @@ def enforce_patched_cfg(cfg_path: str, config_data: dict) -> bool:
     if transformed == current:
         return False
 
-    target.write_text(transformed, encoding="utf-8")
+    write_emulator_config(target, transformed)
     return True
 
 
