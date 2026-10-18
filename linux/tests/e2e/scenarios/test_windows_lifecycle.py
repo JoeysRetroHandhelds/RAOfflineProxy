@@ -263,7 +263,9 @@ def installed(windows_bundle, fake_ra):
     fake_ra.set_mode("online")
     fake_ra.reset()
     fake_ra.clear_journal()
-    root = Path(tempfile.mkdtemp(prefix="raop-win-e2e-"))
+    # resolve(): CI runners give TEMP as an 8.3 short path (C:\Users\RUNNER~1),
+    # while the app reports the long one, so compare like with like.
+    root = Path(tempfile.mkdtemp(prefix="raop-win-e2e-")).resolve()
     app = PortableFolder(root, windows_bundle)
     app.prepare()
     try:
