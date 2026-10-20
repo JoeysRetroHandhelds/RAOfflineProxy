@@ -38,6 +38,7 @@ from .config import (
     running_on_rocknix,
     running_on_spruce,
     running_on_darkos,
+    running_on_windows,
     save_config,
 )
 from .platform import (
@@ -135,6 +136,10 @@ from .menu_input import (
     open_input_devices,
     read_keys,
 )
+
+if running_on_windows():
+    # No /dev/input on Windows: gamepads come through SDL instead, as the same codes.
+    from .windows.input import close_input_devices, open_input_devices, read_keys
 
 SDL_LOG_PATH = CONFIG_DIR / "menu-sdl.log"
 STALE_HOOK_PATH = Path("/userdata/system/scripts/RAOfflineProxy_game_hook.sh")
@@ -348,13 +353,23 @@ def run_menu_sdl(command_runner: str) -> None:
     log_menu_sdl(
         f"run_menu_sdl start python={sys.version.split()[0]} executable={sys.executable}"
     )
+    if running_on_windows():
+        from .windows.input import show_existing_menu
+
+        if show_existing_menu():
+            log_menu_sdl("menu already open; brought it to the front")
+            return
     try:
         import pygame
 
         pygame.init()
         pygame.font.init()
 
-        if running_on_mini_sdl_stack():
+        if running_on_windows():
+            from .windows.input import open_menu_window
+
+            surface = open_menu_window(pygame, load_config())
+        elif running_on_mini_sdl_stack():
             # No fallback: the vendored SDL2 carries no driver but "Mini", which presents
             # only through this renderer path. A plain surface would come back as a menu
             # that runs but never draws, so failing here and returning to the launcher is
@@ -389,7 +404,10 @@ def run_menu_sdl(command_runner: str) -> None:
 
         width, height = surface.get_size()
         log_menu_sdl(f"display set_mode surface_size={width}x{height}")
-        session = MenuSdlSession(command_runner, surface, width, height, pygame)
+        session_class = MenuSdlSession
+        if running_on_windows():
+            from .windows.menu import WindowsMenuSession as session_class
+        session = session_class(command_runner, surface, width, height, pygame)
         session.run()
     except Exception:
         log_menu_sdl(traceback.format_exc().rstrip())
@@ -1568,6 +1586,10 @@ class MenuSdlSession:
         )
 
     def needs_controller_calibration(self) -> bool:
+        if running_on_windows():
+            # SDL's GameController mapping already puts A/B at BTN_SOUTH/BTN_EAST,
+            # which is_confirm_key/is_cancel_key default to.
+            return False
         return not self.calibration_complete()
 
     def configured_confirm_button(self) -> int | None:

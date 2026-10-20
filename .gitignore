@@ -32,3 +32,7 @@ infra/dist/
 infra/cdk.out/
 lambda/*/dist/
 app/e2e/artifacts/
+linux/raofflineproxy/*.dll
+linux/windows/vendor/
+linux/windows/testing.local.json
+linux/windows/*.local.sh

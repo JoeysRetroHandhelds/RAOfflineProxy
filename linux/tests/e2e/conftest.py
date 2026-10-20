@@ -57,10 +57,11 @@ def pytest_collection_modifyitems(config, items) -> None:
         if not requested:
             item.add_marker(opt_in)
             continue
-        if not docker_ok:
+        module = Path(str(item.fspath)).stem
+        # Windows runs on the machine itself; there is no container to need docker for.
+        if not docker_ok and "windows" not in module:
             item.add_marker(no_docker)
             continue
-        module = Path(str(item.fspath)).stem
         if not any(name in module for name in requested):
             item.add_marker(pytest.mark.skip(reason="not in --e2e-device selection"))
 

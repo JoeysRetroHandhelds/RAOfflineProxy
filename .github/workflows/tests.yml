@@ -206,6 +206,66 @@ jobs:
           ZIG_BIN: zig
         run: python3 -m pytest linux/tests/e2e -q --e2e-device ${{ matrix.device }}
 
+  # Windows E2E: builds the Windows bundle (embeddable Python, pygame, the
+  # zig-built hasher DLLs), unzips it into a temp folder (it is portable) and drives
+  # the same lifecycle as the device legs against the fake RA server. There is
+  # no container on Windows, so it runs on the runner itself; see the module
+  # docstring of linux/tests/e2e/scenarios/test_windows_lifecycle.py.
+  windows-e2e:
+    name: e2e (windows)
+    needs: changes
+    if: >-
+      !cancelled() && (
+        github.event_name != 'pull_request' ||
+        needs.changes.outputs.linux == 'true' ||
+        contains(github.event.pull_request.labels.*.name, 'e2e')
+      )
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install test dependencies
+        run: pip install pytest
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
+
+      - name: Cache vendored Python and pygame
+        id: windows-vendor-cache
+        uses: actions/cache@v6
+        with:
+          path: linux/windows/vendor
+          key: windows-vendor-${{ hashFiles('linux/windows/fetch_vendor.sh') }}
+
+      - name: Fetch vendored Python and pygame
+        if: steps.windows-vendor-cache.outputs.cache-hit != 'true'
+        run: bash linux/windows/fetch_vendor.sh
+
+      - name: Build Windows bundle
+        env:
+          ZIG_BIN: zig
+        run: bash linux/windows/build_bundle.sh
+
+      # testing.json redirects Send Logs and updates in test builds only.
+      - name: Check the bundle is not a test build
+        run: test ! -e linux/windows/dist/RAOfflineProxy/testing.json
+
+      - name: Run Windows E2E scenarios
+        env:
+          RAOP_E2E_INSTALLER: ${{ github.workspace }}/linux/windows/dist/RAOfflineProxy
+        run: python -m pytest linux/tests/e2e -q --e2e-device windows
+
   # Emulator E2E: installs the e2e build (RA_HOST pointed at the host) plus stub
   # emulator packages on an Android emulator and drives the real UI start/stop
   # path against the fake RA server. See app/e2e/README.md.
