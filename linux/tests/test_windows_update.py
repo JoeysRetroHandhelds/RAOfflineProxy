@@ -37,3 +37,25 @@ def test_checksum_asset_matches_the_zip_name():
     zip_url = "https://github.com/o/r/releases/download/v2.3/RAOfflineProxy-Windows-v2.3.zip"
     assert find_checksum_asset(assets, zip_url) == "https://x/a.zip.sha256"
     assert find_checksum_asset(assets[:1], zip_url) is None
+
+
+def test_checksum_is_required_only_for_official_releases():
+    from linux.raofflineproxy.windows.update import checksum_required
+
+    assert checksum_required(GITHUB_RELEASES_URL)
+    assert not checksum_required(FORK_RELEASES)
+    assert not checksum_required("http://127.0.0.1:5000/releases.json")
+
+
+def test_an_official_release_without_a_checksum_is_refused(tmp_path):
+    from unittest import mock
+
+    from linux.raofflineproxy.windows import update
+
+    zip_url = "https://github.com/misantronic/RAOfflineProxy/releases/download/v2.3/RAOfflineProxy-Windows-v2.3.zip"
+    with mock.patch("linux.raofflineproxy.windows.paths.portable_root", return_value=tmp_path), \
+            mock.patch.object(update, "releases_url", return_value=GITHUB_RELEASES_URL), \
+            mock.patch.object(update, "_download") as download:
+        with pytest.raises(RuntimeError, match="no checksum file"):
+            update.download_and_launch_installer(zip_url, checksum_url=None)
+    download.assert_not_called()

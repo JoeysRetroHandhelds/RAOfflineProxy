@@ -233,6 +233,12 @@ def releases_url() -> str:
     return test_channel().get("update_releases_url") or load_config().get(RELEASES_URL_OVERRIDE_KEY) or GITHUB_RELEASES_URL
 
 
+def checksum_required(releases_url: str) -> bool:
+    """Official releases must publish a .sha256 for the zip. A test releases
+    list (test channel or update_releases_url) may leave it out."""
+    return releases_url == GITHUB_RELEASES_URL
+
+
 def _download(url: str) -> bytes:
     with urllib.request.urlopen(url, timeout=120, context=configured_ssl_context()) as response:
         return response.read()
@@ -253,6 +259,8 @@ def download_and_launch_installer(asset_url: str, open_menu: bool = True, checks
     for url in (asset_url, checksum_url):
         if url and not allowed_download(url, source):
             raise RuntimeError(f"refusing to download an update from {url}")
+    if checksum_url is None and checksum_required(source):
+        raise RuntimeError("this release has no checksum file (.sha256), so it can't be checked and isn't installed")
     data = _download(asset_url)
     if checksum_url:
         fields = _download(checksum_url).decode("ascii", errors="replace").split()
