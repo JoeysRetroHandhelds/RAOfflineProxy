@@ -23,7 +23,9 @@ def _windows_dll_dirs() -> tuple[Path, ...]:
     """Windows has no system libzstd/libcrypto: zstd.dll ships next to this
     module, and libcrypto comes from the Python install's DLLs directory (the
     copy its ssl module uses)."""
-    if sys.platform != "win32":
+    from .config import running_on_windows
+
+    if not running_on_windows():
         return ()
     return (Path(__file__).resolve().parent, Path(sys.base_prefix) / "DLLs")
 

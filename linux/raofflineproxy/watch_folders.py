@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
 from . import cache_budget, cache_keys
-from .config import CONFIG_FILE, save_config
+from .config import CONFIG_FILE, running_on_windows, save_config
 from .rom_browser import MAX_SCAN_ENTRIES, list_scannable_files_recursive, normalize_cached_rom_path
 from .smart_cache import known_rom_paths, run_cache_paths
 from .storage import Storage, current_millis
@@ -112,7 +111,7 @@ def due_folders(storage: Storage, folders: list[str], now: int) -> list[str]:
 
 
 def seen_paths(storage: Storage, folder: str) -> set[str]:
-    if sys.platform == "win32":
+    if running_on_windows():
         # Scanned paths are built with os.path.join, which uses backslashes there.
         prefix = cache_keys.watch_seen(folder.rstrip("\\/") + "\\")
     else:

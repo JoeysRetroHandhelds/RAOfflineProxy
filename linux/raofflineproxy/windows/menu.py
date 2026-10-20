@@ -12,13 +12,14 @@ import string
 import time
 from pathlib import Path
 
-from . import watch_folders, windows_history
-from .config import load_config, save_config
-from .menu_sdl import ERROR_SECONDS, GROUP_GAP, MenuSdlSession
-from .windows_input import read_keys
-from .pending_awards import PendingAwardEntry
-from .rom_browser import EXCLUDED_BROWSER_DIR_NAMES, is_supported_browser_file
-from .windows_account import (
+from .. import watch_folders
+from . import history as windows_history
+from ..config import load_config, save_config
+from ..menu_sdl import ERROR_SECONDS, GROUP_GAP, MenuSdlSession
+from .input import read_keys
+from ..pending_awards import PendingAwardEntry
+from ..rom_browser import EXCLUDED_BROWSER_DIR_NAMES, is_supported_browser_file
+from .account import (
     LOGIN_LABEL,
     LOGIN_PROGRESS_VIEW,
     SEND_LOGS_DETAILS_VIEW,
@@ -26,8 +27,9 @@ from .windows_account import (
     SEND_LOGS_WITH_DETAILS,
     AccountMixin,
 )
-from . import windows_background, windows_emulators
-from .windows_support import (
+from . import background as windows_background
+from . import emulators as windows_emulators
+from .support import (
     HELP_LABEL,
     HELP_VIEW,
     SUPPORT_AMOUNTS_VIEW,
@@ -36,14 +38,14 @@ from .windows_support import (
     UPDATE_VIEW,
     SupportMixin,
 )
-from .windows_support import EMAIL_LINK as SUPPORT_EMAIL_LINK
-from .windows_support import OPEN_IN_BROWSER as SUPPORT_OPEN_IN_BROWSER
-from .windows_emulators_menu import EMULATOR_ACTIONS_VIEW, EMULATORS_LABEL, EMULATORS_VIEW, EmulatorsMixin
-from .windows_games import CONSOLE_ACTIONS_VIEW, CONSOLE_REMOVE_CONFIRM_VIEW, GamesMixin
-from .windows_keyboard import KEYBOARD_VIEW, KeyboardMixin
-from .windows_mouse import MouseMixin
-from .windows_status import StatusPanelMixin
-from .windows_settings import (
+from .support import EMAIL_LINK as SUPPORT_EMAIL_LINK
+from .support import OPEN_IN_BROWSER as SUPPORT_OPEN_IN_BROWSER
+from .emulators_menu import EMULATOR_ACTIONS_VIEW, EMULATORS_LABEL, EMULATORS_VIEW, EmulatorsMixin
+from .games import CONSOLE_ACTIONS_VIEW, CONSOLE_REMOVE_CONFIRM_VIEW, GamesMixin
+from .keyboard import KEYBOARD_VIEW, KeyboardMixin
+from .mouse import MouseMixin
+from .status import StatusPanelMixin
+from .settings import (
     CLEAR_CACHE_CONFIRM_VIEW,
     CLEAR_DATABASE_CONFIRM_VIEW,
     HIDE_SUPPORT_KEY,
@@ -54,7 +56,7 @@ from .windows_settings import (
     back_action,
     setting_enabled,
 )
-from .storage import PENDING_AWARD_STATUS_PENDING
+from ..storage import PENDING_AWARD_STATUS_PENDING
 
 LAST_BROWSER_DIR_KEY = "rom_browser_last_dir"
 MESSAGE_SECONDS = 1.5
@@ -131,14 +133,14 @@ class WindowsMenuSession(MouseMixin, StatusPanelMixin, SupportMixin, EmulatorsMi
         self.start_update_check()
 
     def app_version_text(self) -> str:
-        from .config import APP_VERSION
+        from ..config import APP_VERSION
 
         return APP_VERSION
 
     def maybe_show_usage_consent(self) -> None:
         """Test builds skip the usage question (they never report, see
         usage_report). Then, once, the Start with Windows question."""
-        from .windows_paths import test_channel
+        from .paths import test_channel
 
         if not test_channel():
             super().maybe_show_usage_consent()
@@ -149,7 +151,7 @@ class WindowsMenuSession(MouseMixin, StatusPanelMixin, SupportMixin, EmulatorsMi
         """Asked once on the first start rather than defaulted: the proxy only
         helps when it's running, but turning it on writes to the PC, which a
         portable folder shouldn't do unasked."""
-        from .windows_paths import portable_root
+        from .paths import portable_root
 
         if portable_root() is None or self.config_data.get(AUTOSTART_ASKED_KEY):
             return
@@ -161,16 +163,13 @@ class WindowsMenuSession(MouseMixin, StatusPanelMixin, SupportMixin, EmulatorsMi
         self.config_data = load_config()
         self.config_data[AUTOSTART_ASKED_KEY] = True
         save_config(self.config_data)
-        if enable:
-            try:
-                self.turn_on_autostart()
-            except OSError as exc:
-                self.flash(f"Couldn't turn on Start with Windows: {exc}", ERROR_SECONDS)
         self.return_to("main")
+        if enable:
+            self.change_autostart(True)
 
     def update_platform(self) -> str | None:
         # The shared checker only knows the Linux bundles (it would fall back to
-        # KNULLI here); windows_update checks for the Windows zip instead.
+        # KNULLI here); windows/update.py checks for the Windows zip instead.
         return None
 
     # Shared helpers --------------------------------------------------------
@@ -238,7 +237,7 @@ class WindowsMenuSession(MouseMixin, StatusPanelMixin, SupportMixin, EmulatorsMi
         when = time.strftime("%Y-%m-%d %H:%M", time.localtime(checked / 1000))
         return f"Last checked {when}. Checked again every 30 minutes while the proxy runs."
 
-    # Smart Cache in its own process (windows_background), so the menu stays
+    # Smart Cache in its own process (background.py), so the menu stays
     # responsive and can be closed while it runs, as on Android.
     def start_smart_cache(self) -> None:
         if self.view == "smart_cache_prompt":
@@ -375,7 +374,7 @@ class WindowsMenuSession(MouseMixin, StatusPanelMixin, SupportMixin, EmulatorsMi
         if self.view == "file_browser" and self.browser_pick_kind is not None:
             return f"Find {self.browser_pick_kind.name}"
         if self.view == CONSOLE_ACTIONS_VIEW:
-            from .windows_games import console_name
+            from .games import console_name
 
             return console_name(self.active_console_id)
         return titles.get(self.view) or super().title_for_view()
@@ -750,7 +749,7 @@ class WindowsMenuSession(MouseMixin, StatusPanelMixin, SupportMixin, EmulatorsMi
     def exit_completely(self) -> None:
         """Stops the proxy (which puts the emulator configs back), closes the
         tray icon, then the menu."""
-        from .windows_tray import QUIT_REQUEST_FILE
+        from .tray import QUIT_REQUEST_FILE
 
         if self.proxy_running():
             self.stop_proxy()

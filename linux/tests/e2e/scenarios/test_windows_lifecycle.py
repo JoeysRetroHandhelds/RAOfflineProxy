@@ -189,7 +189,7 @@ class PortableFolder:
 
     def processes(self) -> list[int]:
         result = self.app_python(
-            "from pathlib import Path; from raofflineproxy import windows_process as w; "
+            "from pathlib import Path; from raofflineproxy.windows import process as w; "
             f"print(w.processes_from_folder(Path(r'{self.folder}'), exclude_self=True))"
         )
         return json.loads(result.stdout.strip())
@@ -374,7 +374,7 @@ class TestProxyLifecycle:
 class TestEmulatorSelection:
     def test_a_turned_off_emulator_is_left_alone(self, installed):
         installed.app_python(
-            "from pathlib import Path; from raofflineproxy import config, windows_emulators as w; "
+            "from pathlib import Path; from raofflineproxy import config; from raofflineproxy.windows import emulators as w; "
             "c = config.load_config(); "
             "c.setdefault('windows_emulators', {})['dolphin'] = "
             "{'exe': 'x', 'config': c['dolphin_config_dir'], 'enabled': False}; "
@@ -388,7 +388,7 @@ class TestEmulatorSelection:
 
     def test_turning_retroarch_off_still_starts_and_patches_the_rest(self, installed):
         installed.app_python(
-            "from raofflineproxy import config, windows_emulators as w; "
+            "from raofflineproxy import config; from raofflineproxy.windows import emulators as w; "
             "c = config.load_config(); "
             "c.setdefault('windows_emulators', {})['retroarch'] = "
             "{'exe': 'x', 'config': c['retroarch_cfg'], 'enabled': False}; "
@@ -505,7 +505,7 @@ def exclusive_lock(path: Path) -> int:
 def launch_without_menu(folder: PortableFolder) -> None:
     """What sign-in does: start the proxy and tray, no menu window."""
     subprocess.Popen(
-        [str(folder.folder / "python" / "pythonw.exe"), "-m", "raofflineproxy.windows_launch", "--autostart"],
+        [str(folder.folder / "python" / "pythonw.exe"), "-m", "raofflineproxy.windows.launch", "--autostart"],
         env=folder.env, cwd=folder.folder,
     )
 
@@ -602,8 +602,8 @@ class TestUpdate:
         locked = exclusive_lock(installed.folder / "python" / "LICENSE.txt")
         try:
             installed.app_python(
-                "from raofflineproxy import windows_update as w; i = w.check(force=True); "
-                "w.download_and_launch_installer(i.asset_url, open_menu=False)"
+                "from raofflineproxy.windows import update as w; i = w.check(force=True); "
+                "w.download_and_launch_installer(i.asset_url, open_menu=False, checksum_url=i.checksum_url)"
             )
             log = installed.data_dir / "update.log"
             # Held until the updater has finished: it retries the rename while
@@ -619,8 +619,11 @@ class TestUpdate:
         assert "alpha99" not in version
         assert not (installed.folder / "python.old").exists() and not (installed.folder / "app.old").exists()
 
-    def _serve_release(self, installed, tmp_path):
+    def _serve_release(self, installed, tmp_path, checksum=None):
+        """A newer release (the same bundle, stamped 2.2.0-alpha99) on a local
+        server. checksum: None (no .sha256 asset), "good" or "bad"."""
         import functools
+        import hashlib
         import http.server
         import threading
 
@@ -636,44 +639,41 @@ class TestUpdate:
         server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         base = f"http://127.0.0.1:{server.server_port}"
+        name = "RAOfflineProxy-Windows-v2.2.0-alpha99.zip"
+        assets = [{"name": name, "browser_download_url": f"{base}/{name}"}]
+        if checksum is not None:
+            digest = hashlib.sha256((tmp_path / name).read_bytes()).hexdigest()
+            if checksum == "bad":
+                digest = "0" * 64
+            (tmp_path / f"{name}.sha256").write_text(f"{digest}  {name}\n")
+            assets.append({"name": f"{name}.sha256", "browser_download_url": f"{base}/{name}.sha256"})
         (tmp_path / "releases.json").write_text(json.dumps([{
-            "tag_name": "v2.2.0-alpha99", "draft": False, "html_url": base,
-            "assets": [{"name": "RAOfflineProxy-Windows-v2.2.0-alpha99.zip",
-                        "browser_download_url": f"{base}/RAOfflineProxy-Windows-v2.2.0-alpha99.zip"}],
+            "tag_name": "v2.2.0-alpha99", "draft": False, "html_url": base, "assets": assets,
         }]))
         installed.write_config({"update_releases_url": f"{base}/releases.json"})
         return base, server
 
-    def test_an_update_replaces_the_program_and_keeps_the_data(self, installed, tmp_path):
-        import functools
-        import http.server
-        import threading
+    def test_an_update_that_fails_its_checksum_is_not_installed(self, installed, tmp_path):
+        _, server = self._serve_release(installed, tmp_path, checksum="bad")
+        try:
+            result = installed.app_python(
+                "from raofflineproxy.windows import update as w; i = w.check(force=True); assert i.checksum_url, i\n"
+                "try:\n    w.download_and_launch_installer(i.asset_url, open_menu=False, checksum_url=i.checksum_url)\n"
+                "except RuntimeError as exc:\n    print('refused:', exc)"
+            )
+        finally:
+            server.shutdown()
+        assert "refused: the downloaded update doesn't match its published checksum" in result.stdout
+        assert not (installed.data_dir / "update.log").exists()
 
-        # A newer release: the same bundle, stamped 2.2.0-alpha99.
-        release = tmp_path / "release"
-        shutil.copytree(installed.bundle, release / "RAOfflineProxy")
-        config_py = release / "RAOfflineProxy" / "app" / "raofflineproxy" / "config.py"
-        config_py.write_text(
-            config_py.read_text(encoding="utf-8").replace('or "2.2.0-alpha1"', 'or "2.2.0-alpha99"'),
-            encoding="utf-8",
-        )
-        shutil.make_archive(str(tmp_path / "RAOfflineProxy-Windows-v2.2.0-alpha99"), "zip", release)
-        handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(tmp_path))
-        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-        base = f"http://127.0.0.1:{server.server_port}"
-        (tmp_path / "releases.json").write_text(json.dumps([{
-            "tag_name": "v2.2.0-alpha99", "draft": False, "html_url": base,
-            "assets": [{"name": "RAOfflineProxy-Windows-v2.2.0-alpha99.zip",
-                        "browser_download_url": f"{base}/RAOfflineProxy-Windows-v2.2.0-alpha99.zip"}],
-        }]))
-        installed.write_config({"update_releases_url": f"{base}/releases.json"})
+    def test_an_update_replaces_the_program_and_keeps_the_data(self, installed, tmp_path):
+        base, server = self._serve_release(installed, tmp_path, checksum="good")
         installed.cli("start-proxy", check=True)
 
         try:
             installed.app_python(
-                "from raofflineproxy import windows_update as w; i = w.check(force=True); "
-                "assert i.available, i; w.download_and_launch_installer(i.asset_url, open_menu=False)"
+                "from raofflineproxy.windows import update as w; i = w.check(force=True); "
+                "assert i.available, i; w.download_and_launch_installer(i.asset_url, open_menu=False, checksum_url=i.checksum_url)"
             )
 
             def updated() -> bool:
@@ -698,7 +698,7 @@ class TestUpdate:
             assert config["proxy_port"] == PROXY_PORT, "data/ was not kept"
             # The saved check offered alpha99, which is now running: no longer an update.
             offered = installed.app_python(
-                "from raofflineproxy import windows_update as w; print(w.check().available)"
+                "from raofflineproxy.windows import update as w; print(w.check().available)"
             ).stdout.strip()
             assert offered == "False", "still offering the version just installed"
         finally:

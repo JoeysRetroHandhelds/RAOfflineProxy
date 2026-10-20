@@ -6,13 +6,34 @@ are recorded here, to their own file, at the moment each one syncs."""
 
 import json
 import logging
+import os
 import time
+from contextlib import contextmanager
 
-from .config import CONFIG_DIR
-from .pending_awards import PendingAwardEntry, build_patch_index
+from ..config import CONFIG_DIR
+from ..pending_awards import PendingAwardEntry, build_patch_index
 
 HISTORY_FILE = CONFIG_DIR / "awards_history.json"
+LOCK_FILE = CONFIG_DIR / "awards_history.lock"
+# The newest this many are kept, which is years of offline play.
+MAX_ENTRIES = 2000
 LOGGER = logging.getLogger("raofflineproxy")
+
+
+@contextmanager
+def _locked():
+    """The service records synced awards while the menu fills in titles, each
+    reading, changing and rewriting the file: one at a time, or one would
+    overwrite the other's change."""
+    from .process import acquire_file_lock, unlock_file
+
+    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with LOCK_FILE.open("a+b") as handle:
+        acquire_file_lock(handle, shared=False, blocking=True, should_abort=None, poll_seconds=0.05)
+        try:
+            yield
+        finally:
+            unlock_file(handle.fileno())
 
 
 def _load() -> list[dict]:
@@ -24,8 +45,12 @@ def _load() -> list[dict]:
 
 
 def _save(entries: list[dict]) -> None:
+    """Call with _locked() held."""
+    if len(entries) > MAX_ENTRIES:
+        entries = sorted(entries, key=lambda entry: int(entry.get("syncedAt", 0)))[-MAX_ENTRIES:]
     HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-    temp = HISTORY_FILE.with_suffix(".tmp")
+    # Named per process, so two writers never share a temp file.
+    temp = HISTORY_FILE.with_name(f"{HISTORY_FILE.name}.{os.getpid()}.tmp")
     temp.write_text(json.dumps(entries, indent=2), encoding="utf-8")
     temp.replace(HISTORY_FILE)
 
@@ -36,17 +61,21 @@ def record_synced_award(storage, award: dict) -> None:
     Never raises: history is a convenience and must not break a flush."""
     try:
         achievement_id = int(award.get("achievementId", 0))
-        entries = [entry for entry in _load() if entry.get("achievementId") != achievement_id]
-        entries.append(
-            {
-                "achievementId": achievement_id,
-                "earnedAt": int(award.get("queuedAt", 0)),
-                "syncedAt": int(time.time() * 1000),
-            }
-        )
-        _save(entries)
+        with _locked():
+            entries = [entry for entry in _load() if entry.get("achievementId") != achievement_id]
+            entries.append(
+                {
+                    "achievementId": achievement_id,
+                    "earnedAt": int(award.get("queuedAt", 0)),
+                    "syncedAt": int(time.time() * 1000),
+                }
+            )
+            _save(entries)
     except Exception:
         LOGGER.exception("Recording award history failed: achievementId=%s", award.get("achievementId"))
+
+
+TITLE_KEYS = ("gameId", "gameTitle", "achievementTitle", "points", "titlesLookedUp")
 
 
 def _resolve_titles(storage, entries: list[dict]) -> bool:
@@ -76,7 +105,16 @@ def list_synced_awards(storage) -> list[PendingAwardEntry]:
     """Newest first, with the earned time shown (as on Android)."""
     stored = _load()
     if _resolve_titles(storage, stored):
-        _save(stored)
+        resolved = {int(entry.get("achievementId", 0)): entry for entry in stored if entry.get("titlesLookedUp")}
+        with _locked():
+            # Read again under the lock, so an award synced meanwhile is kept.
+            current = _load()
+            for entry in current:
+                found = resolved.get(int(entry.get("achievementId", 0)))
+                if found is not None and not entry.get("titlesLookedUp"):
+                    entry.update({key: found[key] for key in TITLE_KEYS if key in found})
+            _save(current)
+            stored = current
     entries = [
         PendingAwardEntry(
             achievement_id=int(entry.get("achievementId", 0)),
@@ -97,4 +135,5 @@ def synced_count() -> int:
 
 
 def clear_history() -> None:
-    HISTORY_FILE.unlink(missing_ok=True)
+    with _locked():
+        HISTORY_FILE.unlink(missing_ok=True)

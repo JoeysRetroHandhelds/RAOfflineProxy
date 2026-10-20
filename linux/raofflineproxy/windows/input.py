@@ -13,7 +13,7 @@ loop drains that queue first."""
 import time
 from pathlib import Path
 
-from .menu_input import (
+from ..menu_input import (
     BTN_DPAD_DOWN,
     BTN_DPAD_LEFT,
     BTN_DPAD_RIGHT,
@@ -192,7 +192,7 @@ def open_menu_window(pygame, config_data: dict):
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("RAOfflineProxy.Menu")
     except (AttributeError, OSError):
         pass
-    logo = Path(__file__).resolve().parent / "logo-320.png"
+    logo = Path(__file__).resolve().parent.parent / "logo-320.png"
     if logo.exists():
         try:
             pygame.display.set_icon(pygame.transform.smoothscale(pygame.image.load(str(logo)), (64, 64)))

@@ -19,6 +19,7 @@ from .config import (
     proxy_port,
     running_on_darkos,
     save_config,
+    running_on_windows,
 )
 from .darkos_service import (
     darkos_service_start,
@@ -35,10 +36,6 @@ from .state import (
     save_service_status,
 )
 
-if sys.platform == "win32":
-    from . import windows_process
-else:
-    windows_process = None
 
 PORT_FALLBACK_ATTEMPTS = 50
 STOP_REQUEST_FILE = CONFIG_DIR / "service.stop"
@@ -50,7 +47,9 @@ SERVICE_COMMAND_MARKERS = [
 
 
 def process_is_running(pid: int) -> bool:
-    if windows_process is not None:
+    if running_on_windows():
+        from .windows import process as windows_process
+
         return windows_process.process_is_running(pid)
     try:
         os.kill(pid, 0)
@@ -67,7 +66,9 @@ def process_has_exited(pid: int) -> bool:
 
 
 def process_matches_service(pid: int) -> bool:
-    if windows_process is not None:
+    if running_on_windows():
+        from .windows import process as windows_process
+
         return windows_process.process_matches_service(pid)
     command = _proc_command_line(pid)
     if command:
@@ -97,7 +98,9 @@ def process_is_orphaned(pid: int) -> bool:
 
 
 def discover_service_pids() -> list[int]:
-    if windows_process is not None:
+    if running_on_windows():
+        from .windows import process as windows_process
+
         return windows_process.discover_service_pids(load_pid())
     pids: set[int] = set()
 
@@ -214,7 +217,9 @@ def save_running_service_state(
 
 
 def _kill_orphaned_pid(pid: int, timeout_seconds: int = 5) -> None:
-    if windows_process is not None:
+    if running_on_windows():
+        from .windows import process as windows_process
+
         windows_process.terminate_process(pid)
         return
     try:
@@ -241,7 +246,9 @@ def port_is_available(config_data: dict) -> bool:
         # Same option the real server binds with (ThreadingTCPServer.allow_reuse_address),
         # so a port left in TIME_WAIT by our own previous run is not reported as taken.
         # It still fails against a live listener, which is the case worth catching.
-        if windows_process is not None:
+        if running_on_windows():
+            from .windows import process as windows_process
+
             windows_process.make_probe_exclusive(probe)
         else:
             probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -301,7 +308,9 @@ def start_service_process(config_data: dict) -> dict:
         pass_fds = (int(listen_fd),)
         env = {**os.environ, LISTEN_FD_ENV: listen_fd}
 
-    if windows_process is not None:
+    if running_on_windows():
+        from .windows import process as windows_process
+
         # Cleared here rather than by the service on startup, so a stop that
         # arrives while the service is still starting isn't wiped unread.
         windows_process.clear_stop_request(STOP_REQUEST_FILE)
@@ -320,7 +329,9 @@ def start_service_process(config_data: dict) -> dict:
             **detach,
         )
 
-    if windows_process is not None:
+    if running_on_windows():
+        from .windows import process as windows_process
+
         windows_process.remember_service(process.pid)
     save_running_service_state(process.pid, config_data)
     return {"started": True, "already_running": False, "pid": process.pid}
@@ -346,7 +357,9 @@ def stop_service_process(timeout_seconds: int = 10) -> dict:
         clear_service_status()
         return {"stopped": False, "already_stopped": True}
 
-    if windows_process is not None:
+    if running_on_windows():
+        from .windows import process as windows_process
+
         windows_process.request_stop(STOP_REQUEST_FILE)
     else:
         for pid in pids:
@@ -366,14 +379,18 @@ def stop_service_process(timeout_seconds: int = 10) -> dict:
 
     remaining = [pid for pid in pids if not process_has_exited(pid)]
     for pid in remaining:
-        if windows_process is not None:
+        if running_on_windows():
+            from .windows import process as windows_process
+
             windows_process.terminate_process(pid)
             continue
         try:
             os.kill(pid, signal.SIGKILL)
         except OSError:
             pass
-    if windows_process is not None:
+    if running_on_windows():
+        from .windows import process as windows_process
+
         windows_process.clear_stop_request(STOP_REQUEST_FILE)
 
     clear_pid()
@@ -435,9 +452,12 @@ def run_service_foreground(config_data: dict) -> None:
 
     def watch_stop() -> None:
         while not stop_requested:
-            if windows_process is not None and windows_process.stop_requested(STOP_REQUEST_FILE):
-                windows_process.clear_stop_request(STOP_REQUEST_FILE)
-                break
+            if running_on_windows():
+                from .windows import process as windows_process
+
+                if windows_process.stop_requested(STOP_REQUEST_FILE):
+                    windows_process.clear_stop_request(STOP_REQUEST_FILE)
+                    break
             time.sleep(0.2)
         stop_event.set()
 

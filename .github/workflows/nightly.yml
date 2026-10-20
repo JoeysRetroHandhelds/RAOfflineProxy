@@ -203,6 +203,13 @@ jobs:
       - name: Check the Windows bundle is not a test build
         run: test ! -e linux/windows/dist/RAOfflineProxy/testing.json
 
+      # The in-app updater checks the zip against this before installing it.
+      - name: Checksum the Windows zip
+        working-directory: linux/windows/dist
+        run: |
+          zip="RAOfflineProxy-Windows-v${{ steps.version.outputs.version }}.zip"
+          sha256sum "${zip}" > "${zip}.sha256"
+
       - name: Publish nightly-linux
         env:
           GH_TOKEN: ${{ secrets.NIGHTLY_REPO_TOKEN }}
@@ -215,4 +222,6 @@ jobs:
             "linux/allium/dist/RAOfflineProxy-Allium-v${version}.zip" \
             "linux/muos/dist/RAOfflineProxy-muOS-v${version}.muxapp" \
             "linux/rocknix/dist/RAOfflineProxy-Rocknix-v${version}-Install.sh" \
-            "linux/darkos/dist/RAOfflineProxy-DarkOS-v${version}-Install.sh"             "linux/windows/dist/RAOfflineProxy-Windows-v${version}.zip"
+            "linux/darkos/dist/RAOfflineProxy-DarkOS-v${version}-Install.sh" \
+            "linux/windows/dist/RAOfflineProxy-Windows-v${version}.zip" \
+            "linux/windows/dist/RAOfflineProxy-Windows-v${version}.zip.sha256"

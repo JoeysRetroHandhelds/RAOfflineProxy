@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 from .config import (
@@ -15,6 +14,7 @@ from .config import (
     running_on_spruce,
     save_config,
     spruce_platform,
+    running_on_windows,
 )
 from .darkos_service import (
     DEFAULT_DARKOS_SERVICE_UNIT,
@@ -64,10 +64,6 @@ ALLIUM_OTA_ARCHIVE = Path("/mnt/SDCARD/allium-ota.zip")
 ROCKNIX_MODULES_DIR = Path("/storage/.config/modules")
 ROCKNIX_MODULES_LAUNCHER = ROCKNIX_MODULES_DIR / "RAOfflineProxy.sh"
 ROCKNIX_TOOL_SOURCE = Path("/storage/.local/share/raofflineproxy/RAOfflineProxy.sh")
-if sys.platform == "win32":
-    from . import windows_process
-else:
-    windows_process = None
 
 
 ROM_DIRECTORY_KEYS = [
@@ -103,7 +99,7 @@ def darkos_roms_root() -> Path | None:
 
 
 def resolve_rom_root(config_data: dict) -> Path:
-    if windows_process is not None:
+    if running_on_windows():
         # A Windows ROM library can be anywhere, so it is configured ("rom_root" in config.json).
         configured = config_data.get("rom_root")
         if configured and Path(str(configured)).is_dir():
@@ -157,13 +153,15 @@ def read_retroarch_cfg_values(cfg_path: Path) -> dict[str, str]:
 
 
 def autostart_supported(config_data: dict) -> bool:
-    if windows_process is not None:
+    if running_on_windows():
         return True
     return resolve_startup_script_path(config_data) is not None
 
 
 def is_autostart_enabled(config_data: dict) -> bool:
-    if windows_process is not None:
+    if running_on_windows():
+        from .windows import process as windows_process
+
         return windows_process.autostart_enabled()
     # systemd owns this on dArkOS: the unit's enabled state is the truth, not the
     # config flag, so that toggling it outside the app is still reflected here.
@@ -200,7 +198,9 @@ def _legacy_autostart_present(config_data: dict) -> bool:
 
 
 def enable_autostart(config_data: dict) -> None:
-    if windows_process is not None:
+    if running_on_windows():
+        from .windows import process as windows_process
+
         windows_process.enable_autostart()
         return
     if not autostart_supported(config_data):
@@ -212,7 +212,9 @@ def enable_autostart(config_data: dict) -> None:
 
 
 def disable_autostart(config_data: dict) -> None:
-    if windows_process is not None:
+    if running_on_windows():
+        from .windows import process as windows_process
+
         windows_process.disable_autostart()
         return
     config_data[AUTOSTART_CONFIG_KEY] = False

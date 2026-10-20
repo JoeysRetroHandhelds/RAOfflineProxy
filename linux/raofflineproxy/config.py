@@ -8,8 +8,6 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from . import windows_paths
-
 
 DEFAULT_ONION_APP_DIR = Path("/mnt/SDCARD/App/RAOfflineProxy")
 DEFAULT_ONION_STARTUP_SCRIPT = Path("/mnt/SDCARD/.tmp_update/startup/raofflineproxy.sh")
@@ -245,7 +243,17 @@ def spruce_setting(name: str) -> str | None:
 
 
 def running_on_windows() -> bool:
+    """The one Windows check. Code in raofflineproxy.windows is imported only
+    inside a branch on this, so it never loads on the other devices."""
     return sys.platform == "win32"
+
+
+def _windows_retroarch_candidates() -> tuple[Path, ...]:
+    if not running_on_windows():
+        return ()
+    from .windows import paths
+
+    return (*paths.retroarch_cfg_candidates(), paths.retroarch_placeholder(CONFIG_DIR))
 
 
 def resolve_config_dir() -> Path:
@@ -276,7 +284,9 @@ def resolve_config_dir() -> Path:
         return DEFAULT_ROCKNIX_CONFIG_DIR
 
     if running_on_windows():
-        return windows_paths.config_dir()
+        from .windows import paths
+
+        return paths.config_dir()
 
     return Path.home() / ".config" / "raofflineproxy"
 
@@ -342,7 +352,7 @@ def load_config() -> dict:
     if running_on_windows():
         # Points each emulator at its real config, or at a placeholder when it's
         # turned off or its config doesn't exist yet (e.g. never launched).
-        from .windows_emulators import apply_state
+        from .windows.emulators import apply_state
 
         apply_state(data)
 
@@ -453,12 +463,7 @@ def _retroarch_cfg_lookup() -> tuple[tuple[Callable[[], bool], tuple[Path, ...]]
         ),
         (lambda: Path("/mnt/SDCARD").exists(), tuple(SDCARD_RETROARCH_CFG_CANDIDATES)),
         # The placeholder comes last, so it's used only when no RetroArch exists.
-        (
-            running_on_windows,
-            (*windows_paths.retroarch_cfg_candidates(), windows_paths.retroarch_placeholder(CONFIG_DIR))
-            if running_on_windows()
-            else (),
-        ),
+        (running_on_windows, _windows_retroarch_candidates()),
     )
 
 
@@ -521,7 +526,9 @@ def detect_ppsspp_ini(config_data: dict) -> str | None:
         return str(DEFAULT_ROCKNIX_PPSSPP_INI)
 
     if running_on_windows():
-        windows_ini = windows_paths.ppsspp_ini()
+        from .windows import paths
+
+        windows_ini = paths.ppsspp_ini()
         if windows_ini is not None:
             return str(windows_ini)
 
@@ -541,7 +548,9 @@ def detect_dolphin_config_dir(config_data: dict) -> str | None:
         return str(DEFAULT_ROCKNIX_DOLPHIN_CONFIG_DIR)
 
     if running_on_windows():
-        windows_dir = windows_paths.dolphin_config_dir()
+        from .windows import paths
+
+        windows_dir = paths.dolphin_config_dir()
         if windows_dir is not None:
             return str(windows_dir)
 

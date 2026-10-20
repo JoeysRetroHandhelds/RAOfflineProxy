@@ -18,10 +18,10 @@ import struct
 import subprocess
 import time
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 APP_NAME = "RAOfflineProxy"
-LAUNCH_OPTIONS = "-m raofflineproxy.windows_launch"
+LAUNCH_OPTIONS = "-m raofflineproxy.windows.launch"
 STEAM_KEY = r"Software\Valve\Steam"
 # Account ids in userdata are SteamID64s minus this.
 STEAM_ID64_BASE = 76561197960265728
@@ -208,6 +208,8 @@ def _is_ours(entry: dict) -> bool:
 def upsert_shortcut(shortcuts: dict, root: Path, icon: Path | None) -> int:
     """Adds or updates our entry in parsed shortcuts.vdf data; returns its app id."""
     table = shortcuts.setdefault("shortcuts", {})
+    # Windows paths whatever the host, so the tests read the same everywhere.
+    root = PureWindowsPath(root)
     exe = f'"{root / "python" / "pythonw.exe"}"'
     app_id = shortcut_app_id(exe, APP_NAME)
     entry = next((item for item in table.values() if isinstance(item, dict) and _is_ours(item)), None)

@@ -10,11 +10,11 @@ import platform
 import threading
 import urllib.request
 
-from .auth import login_and_cache_token
-from .config import APP_VERSION, FALLBACK_USER_AGENT, load_config
-from .log_uploader import REQUEST_TIMEOUT_SECONDS, upload_logs
-from .menu_sdl import ERROR_SECONDS
-from .network import configured_ssl_context
+from ..auth import login_and_cache_token
+from ..config import APP_VERSION, FALLBACK_USER_AGENT, load_config
+from ..log_uploader import REQUEST_TIMEOUT_SECONDS, upload_logs
+from ..menu_sdl import ERROR_SECONDS
+from ..network import configured_ssl_context
 
 LOGGER = logging.getLogger("raofflineproxy")
 
@@ -67,7 +67,7 @@ def os_version() -> str:
 
 def metadata_overrides(config_data: dict) -> dict:
     """What log_uploader.device_metadata reports differently on Windows."""
-    from .state import load_patch_state
+    from ..state import load_patch_state
 
     overrides: dict = {
         "system": "Windows",
@@ -114,8 +114,8 @@ def submit_support_request(log_id: str, email: str, message: str) -> None:
 def retroarch_account_note(user: str) -> str:
     """The proxy prefers the login saved in RetroArch's config over the one
     from this menu, so say so when RetroArch is signed in as someone else."""
-    from .platform import resolve_retroarch_cfg
-    from .retroarch_cfg import load_retroarch_credentials
+    from ..platform import resolve_retroarch_cfg
+    from ..retroarch_cfg import load_retroarch_credentials
 
     try:
         saved = load_retroarch_credentials(resolve_retroarch_cfg(load_config()))
@@ -241,7 +241,7 @@ class AccountMixin:
         self.start_send_logs()
 
     def start_send_logs(self) -> None:
-        from .windows_paths import test_channel
+        from .paths import test_channel
 
         details = self.logs_details
         self.logs_details = None
@@ -287,7 +287,7 @@ class AccountMixin:
         import time
         from pathlib import Path
 
-        from .log_uploader import _read_redacted_log_files, _zip_logs, device_metadata
+        from ..log_uploader import _read_redacted_log_files, _zip_logs, device_metadata
 
         self.storage_corruption_active = False
         self.log_upload_progress_text = "Saving logs..."

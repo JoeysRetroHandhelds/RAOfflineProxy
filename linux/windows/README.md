@@ -2,18 +2,19 @@
 
 Experimental. Runs the shared `linux/raofflineproxy` package on Windows PCs and handhelds as a **portable folder**: an embeddable Python is bundled, nothing is installed, and settings and cache live in the folder.
 
-Windows-only code is kept in its own modules, which the shared code only calls into when `sys.platform == "win32"`. Each is named `raofflineproxy/windows_*.py`:
+Windows-only code is kept in its own subpackage, `raofflineproxy/windows/`. Shared modules import from it lazily, only inside a `config.running_on_windows()` branch, so it never loads on the other devices:
 
-- `windows_paths.py`: the portable folder and its `data/`, plus RetroArch, Dolphin and PPSSPP locations
-- `windows_process.py`: process checks, detached start, graceful stop (Windows has no SIGTERM), exclusive port probe and `LockFileEx` file locks
-- `windows_launch.py`: what the Start and Stop scripts run
-- `windows_autostart.py`: Start with Windows, surviving a changed drive letter
-- `windows_emulators.py` and `windows_emulators_menu.py`: emulator detection and the on/off screen
-- `windows_menu.py` and its mixins (`windows_settings`, `windows_games`, `windows_account`, `windows_support`, `windows_status`, `windows_keyboard`, `windows_input`): the Android app's features on top of the shared SDL menu
-- `windows_tray.py`: tray icon and notifications
-- `windows_background.py`: Smart Cache as its own process
-- `windows_history.py`: Awards History
-- `windows_update.py`: in-app updates
+- `paths.py`: the portable folder and its `data/`, plus RetroArch, Dolphin and PPSSPP locations
+- `process.py`: process checks, detached start, graceful stop (Windows has no SIGTERM), exclusive port probe and `LockFileEx` file locks
+- `launch.py`: what the Start and Stop scripts run
+- `autostart.py`: Start with Windows, surviving a changed drive letter
+- `emulators.py` and `emulators_menu.py`: emulator detection and the on/off screen
+- `menu.py` and its mixins (`settings`, `games`, `account`, `support`, `status`, `keyboard`, `input`, `mouse`): the Android app's features on top of the shared SDL menu
+- `tray.py`: tray icon and notifications
+- `background.py`: Smart Cache as its own process
+- `history.py`: Awards History
+- `update.py`: in-app updates
+- `steam.py`: Add to Steam
 
 ## Using it
 
@@ -47,7 +48,7 @@ The same SDL menu as the Linux handhelds, plus the Android app's screens: Emulat
 
 Tested with RetroArch and Dolphin. PPSSPP detection is in place but untested.
 
-`windows_emulators.py` finds them the way the Android app lists installed ones, as far as Windows allows. It looks in:
+`windows/emulators.py` finds them the way the Android app lists installed ones, as far as Windows allows. It looks in:
 
 - the installed-programs registry
 - Start-menu and desktop shortcuts

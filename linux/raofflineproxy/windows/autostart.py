@@ -21,7 +21,7 @@ import subprocess
 import uuid
 from pathlib import Path
 
-from .windows_paths import PORTABLE_MARKER, portable_root
+from .paths import PORTABLE_MARKER, portable_root
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 RUN_VALUE = "RAOfflineProxy"
@@ -49,7 +49,7 @@ foreach ($disk in Get-CimInstance Win32_LogicalDisk -Filter 'DriveType = 2 OR Dr
 foreach ($root in $candidates) {
     if (Test-Folder $root) {
         Start-Process -FilePath (Join-Path $root 'python\pythonw.exe') `
-            -ArgumentList '-m', 'raofflineproxy.windows_launch', '--autostart' `
+            -ArgumentList '-m', 'raofflineproxy.windows.launch', '--autostart' `
             -WorkingDirectory $root
         break
     }
@@ -111,12 +111,7 @@ MODE_ENV = "RAOFFLINEPROXY_AUTOSTART_MODE"
 # so this runs elevated, once, through the standard UAC prompt. The task itself
 # runs as the signed-in user, unelevated, with no time limit and on battery.
 REGISTER_SCRIPT = r"""
-param([string]$User, [string]$Execute, [string]$Arguments, [switch]$Remove)
 $ErrorActionPreference = 'Stop'
-if ($Remove) {
-    Unregister-ScheduledTask -TaskName 'RAOfflineProxy' -Confirm:$false
-    exit 0
-}
 $action = New-ScheduledTaskAction -Execute $Execute -Argument $Arguments
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $User
 $principal = New-ScheduledTaskPrincipal -UserId $User -LogonType Interactive -RunLevel Limited
@@ -125,6 +120,14 @@ $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoi
 Register-ScheduledTask -TaskName 'RAOfflineProxy' -Action $action -Trigger $trigger `
     -Principal $principal -Settings $settings -Force | Out-Null
 """
+REMOVE_SCRIPT = r"""
+$ErrorActionPreference = 'Stop'
+Unregister-ScheduledTask -TaskName 'RAOfflineProxy' -Confirm:$false
+"""
+
+
+def _ps_literal(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
 
 
 def _launcher_command() -> list[str]:
@@ -145,18 +148,20 @@ def _run_value() -> str:
     return subprocess.list2cmdline(_launcher_command())
 
 
-def _run_elevated(*args: str) -> bool:
-    """Runs register.ps1 elevated (one UAC prompt) and waits. False when the
-    prompt was declined or the script failed."""
-    script = launcher_dir() / "register.ps1"
-    script.parent.mkdir(parents=True, exist_ok=True)
-    script.write_text(REGISTER_SCRIPT.lstrip(), encoding="utf-8")
-    inner = subprocess.list2cmdline(
-        ["-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", str(script), *args]
-    )
+def _run_elevated(script: str, **values: str) -> bool:
+    """Runs a PowerShell script elevated (one UAC prompt) and waits. The script
+    goes inline as -EncodedCommand, never through a file: a file in a folder
+    the user can write to could be swapped before the elevated PowerShell
+    reads it. values become $name variables set ahead of the script. False
+    when the prompt was declined or the script failed."""
+    import base64
+
+    prelude = "".join(f"${name} = {_ps_literal(value)}\n" for name, value in values.items())
+    encoded = base64.b64encode((prelude + script.lstrip()).encode("utf-16-le")).decode("ascii")
     outer = (
         "try { $p = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -WindowStyle Hidden "
-        f"-ArgumentList '{inner.replace(chr(39), chr(39) * 2)}'; exit $p.ExitCode }} catch {{ exit 1223 }}"
+        f"-ArgumentList '-NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand {encoded}'; "
+        "exit $p.ExitCode } catch { exit 1223 }"
     )
     result = subprocess.run(
         ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", outer],
@@ -241,7 +246,9 @@ def enable() -> str:
         # admin's password would otherwise register the task for that account.
         domain, name = os.environ.get("USERDOMAIN", ""), os.environ.get("USERNAME", "")
         user = f"{domain}\\{name}" if domain else name
-        if _run_elevated("-User", user, "-Execute", command[0], "-Arguments", subprocess.list2cmdline(command[1:])):
+        if _run_elevated(
+            REGISTER_SCRIPT, User=user, Execute=command[0], Arguments=subprocess.list2cmdline(command[1:])
+        ):
             _set_run_entry(False)  # one way to start, not two
             return "task"
     _set_run_entry(True)
@@ -254,7 +261,7 @@ def disable() -> bool:
     import shutil
 
     _forget_task()
-    if task_exists() and not _run_elevated("-Remove"):
+    if task_exists() and not _run_elevated(REMOVE_SCRIPT):
         return False
     _forget_task()
     _set_run_entry(False)
@@ -263,7 +270,9 @@ def disable() -> bool:
 
 
 def refresh_location() -> None:
-    """Called on every start, so the launcher's first guess is where the folder is now."""
+    """Called on every start, so the launcher's first guess is where the folder
+    is now, and the launcher itself is the current version's."""
     root = portable_root()
     if root is not None and is_enabled():
         _write_location(root)
+        (launcher_dir() / "start.ps1").write_text(LAUNCHER_SCRIPT.lstrip(), encoding="utf-8")

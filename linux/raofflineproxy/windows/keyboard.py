@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable
 
-from .menu_input import (
+from ..menu_input import (
     BTN_DPAD_DOWN,
     BTN_DPAD_LEFT,
     BTN_DPAD_RIGHT,
@@ -21,7 +21,7 @@ from .menu_input import (
     KEY_RIGHT,
     KEY_UP,
 )
-from .menu_sdl import (
+from ..menu_sdl import (
     BACKGROUND_COLOR,
     LEFT_MARGIN,
     PRIMARY_COLOR,
@@ -203,7 +203,7 @@ class KeyboardMixin:
 
         # The key grid: equal-width cells per row, centred.
         top = field_rect.bottom + 32
-        self.key_rects = []  # for mouse clicks (windows_mouse)
+        self.key_rects = []  # for mouse clicks (mouse.py)
         key_height = self.item_font.get_height() + 24
         usable = self.width - 2 * LEFT_MARGIN
         widest = max(len(row) for row in kb.rows)

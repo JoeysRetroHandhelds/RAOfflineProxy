@@ -7,9 +7,9 @@ to an exe detection missed. Mixed into WindowsMenuSession."""
 import threading
 from pathlib import Path
 
-from . import windows_emulators
-from .config import load_config, save_config
-from .menu_sdl import ERROR_SECONDS
+from . import emulators as windows_emulators
+from ..config import load_config, save_config
+from ..menu_sdl import ERROR_SECONDS
 
 EMULATORS_LABEL = "Emulators"
 EMULATORS_VIEW = "win_emulators"

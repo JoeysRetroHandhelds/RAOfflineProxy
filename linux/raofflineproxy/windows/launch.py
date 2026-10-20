@@ -3,9 +3,9 @@ from __future__ import annotations
 """Start and stop for the portable Windows folder, run by its
 "Start RAOfflineProxy.cmd" and "Stop RAOfflineProxy.cmd".
 
-  python -m raofflineproxy.windows_launch            start: proxy, tray, menu
-  python -m raofflineproxy.windows_launch --autostart  start at sign-in: no menu
-  python -m raofflineproxy.windows_launch --stop     stop everything from this folder
+  python -m raofflineproxy.windows.launch            start: proxy, tray, menu
+  python -m raofflineproxy.windows.launch --autostart  start at sign-in: no menu
+  python -m raofflineproxy.windows.launch --stop     stop everything from this folder
 
 Nothing is installed: settings and cache live in the folder's data/. The first
 start finds the emulators; every start refreshes where the folder is, so Start
@@ -16,7 +16,7 @@ import subprocess
 import sys
 import time
 
-from .config import load_config, save_config
+from ..config import load_config, save_config
 
 # The PC the emulator paths in data/ were found on.
 MACHINE_KEY = "emulators_found_on"
@@ -31,9 +31,10 @@ def _run_cli(*args: str) -> None:
 
 
 def start(open_menu: bool) -> None:
-    from . import windows_autostart, windows_emulators
-    from .windows_process import pythonw_command
-    from .windows_tray import proxy_running
+    from . import autostart as windows_autostart
+    from . import emulators as windows_emulators
+    from .process import pythonw_command
+    from .tray import proxy_running
 
     config_data = load_config()
     machine = platform.node()
@@ -50,7 +51,7 @@ def start(open_menu: bool) -> None:
     if not proxy_running():
         _run_cli("start-proxy")
     # The tray exits at once if one is already running (it holds a mutex).
-    subprocess.Popen(pythonw_command("raofflineproxy.windows_tray"))
+    subprocess.Popen(pythonw_command("raofflineproxy.windows.tray"))
     if open_menu:
         subprocess.Popen(pythonw_command("raofflineproxy.main", "menu"))
 
@@ -58,13 +59,13 @@ def start(open_menu: bool) -> None:
 def stop() -> None:
     """Stops the proxy (which puts the emulator configs back), then closes the
     tray and menu still running from this folder."""
-    from .windows_tray import QUIT_REQUEST_FILE
+    from .tray import QUIT_REQUEST_FILE
 
     _run_cli("stop-proxy")
     QUIT_REQUEST_FILE.parent.mkdir(parents=True, exist_ok=True)
     QUIT_REQUEST_FILE.touch()
-    from .windows_process import processes_from_folder, terminate_process
-    from .windows_paths import portable_root
+    from .process import processes_from_folder, terminate_process
+    from .paths import portable_root
 
     root = portable_root()
     if root is None:

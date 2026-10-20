@@ -145,7 +145,7 @@ def process_creation_time(pid: int) -> int | None:
 
 
 def _identity_file() -> Path:
-    from .config import CONFIG_DIR
+    from ..config import CONFIG_DIR
 
     return CONFIG_DIR / "service.identity.json"
 
@@ -247,22 +247,22 @@ def pythonw_command(module: str, *args: str) -> list[str]:
     return [str(pythonw if pythonw.exists() else sys.executable), "-m", module, *args]
 
 
-# Start with Windows lives in windows_autostart, which survives the portable
+# Start with Windows lives in autostart.py, which survives the portable
 # folder changing drive letter; these keep the names platform.py calls.
 def autostart_enabled() -> bool:
-    from . import windows_autostart
+    from . import autostart as windows_autostart
 
     return windows_autostart.is_enabled()
 
 
 def enable_autostart() -> None:
-    from . import windows_autostart
+    from . import autostart as windows_autostart
 
     windows_autostart.enable()
 
 
 def disable_autostart() -> None:
-    from . import windows_autostart
+    from . import autostart as windows_autostart
 
     windows_autostart.disable()
 

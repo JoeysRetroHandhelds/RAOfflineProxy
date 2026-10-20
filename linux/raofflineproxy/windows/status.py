@@ -8,9 +8,11 @@ couple of seconds rather than every frame. Mixed into WindowsMenuSession."""
 
 import time
 
-from . import cache_budget, cache_queue, watch_folders, windows_background, windows_history
-from .menu_sdl import PRIMARY_COLOR, SECONDARY_TEXT_COLOR, SELECTED_COLOR, TEXT_COLOR
-from .storage import PENDING_AWARD_STATUS_PENDING, current_millis
+from .. import cache_budget, cache_queue, watch_folders
+from . import background as windows_background
+from . import history as windows_history
+from ..menu_sdl import PRIMARY_COLOR, SECONDARY_TEXT_COLOR, SELECTED_COLOR, TEXT_COLOR
+from ..storage import PENDING_AWARD_STATUS_PENDING, current_millis
 
 PANEL_REFRESH_SECONDS = 2.0
 

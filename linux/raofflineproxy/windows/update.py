@@ -17,9 +17,9 @@ import zipfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from .config import APP_VERSION, CONFIG_DIR, load_config
-from .network import configured_ssl_context
-from .update import (
+from ..config import APP_VERSION, CONFIG_DIR, load_config
+from ..network import configured_ssl_context
+from ..update import (
     GITHUB_NIGHTLY_RELEASE_URL,
     GITHUB_RELEASES_URL,
     fetch_github_json,
@@ -47,6 +47,8 @@ class WindowsUpdate:
     asset_url: str | None
     checked_at: int
     failed: bool = False
+    # The release's "<zip>.sha256" asset, when it publishes one.
+    checksum_url: str | None = None
 
 
 def find_windows_asset(assets: list[dict]) -> str | None:
@@ -57,11 +59,42 @@ def find_windows_asset(assets: list[dict]) -> str | None:
     return None
 
 
+def find_checksum_asset(assets: list[dict], zip_url: str) -> str | None:
+    wanted = zip_url.rsplit("/", 1)[-1].lower() + ".sha256"
+    for asset in assets:
+        if str(asset.get("name") or "").lower() == wanted:
+            return str(asset.get("browser_download_url") or "") or None
+    return None
+
+
+def allowed_download(url: str, releases_url: str) -> bool:
+    """Only this project's GitHub release downloads are installed. A test
+    releases list (test channel or update_releases_url) may also point at its
+    own repository's releases, or at its own host (a local test server)."""
+    from urllib.parse import urlsplit
+
+    def repo_of(api_url: str) -> str | None:
+        parts = urlsplit(api_url)
+        if parts.netloc == "api.github.com" and parts.path.startswith("/repos/"):
+            return "/".join(parts.path.split("/")[2:4]).lower()
+        return None
+
+    target = urlsplit(url)
+    source = urlsplit(releases_url)
+    # The releases and the nightly builds (published to a repository of their own).
+    repos = {repo_of(GITHUB_RELEASES_URL), repo_of(GITHUB_NIGHTLY_RELEASE_URL), repo_of(releases_url)} - {None}
+    if target.scheme == "https" and target.netloc == "github.com":
+        repo = "/".join(target.path.split("/")[1:3]).lower()
+        return repo in repos and target.path.split("/")[3:5] == ["releases", "download"]
+    official = urlsplit(GITHUB_RELEASES_URL).netloc
+    return source.netloc not in ("", official, "api.github.com") and target.netloc == source.netloc
+
+
 def check(force: bool = False) -> WindowsUpdate:
     cached = load_status()
     if cached is not None and not force:
         interval = RETRY_INTERVAL_SECONDS if cached.failed else CHECK_INTERVAL_SECONDS
-        from .windows_paths import test_channel
+        from .paths import test_channel
 
         if test_channel().get("update_releases_url"):
             # Test builds are published often, so testers get them quickly.
@@ -71,10 +104,10 @@ def check(force: bool = False) -> WindowsUpdate:
 
     current = parse_version(APP_VERSION)
     best = None
-    from .windows_paths import test_channel
+    from .paths import test_channel
 
     override = test_channel().get("update_releases_url") or load_config().get(RELEASES_URL_OVERRIDE_KEY)
-    releases = fetch_github_json(override or GITHUB_RELEASES_URL)
+    releases = fetch_github_json(releases_url())
     candidates = [(release, str(release.get("tag_name") or "")) for release in releases or [] if isinstance(release, dict)]
     if current is not None and current.is_nightly and not override:
         # Nightly installs also follow the nightly build, whose Windows zip is
@@ -93,7 +126,8 @@ def check(force: bool = False) -> WindowsUpdate:
         if version.is_nightly and not current.is_nightly:
             continue
         if best is None or version > best[0]:
-            best = (version, version_name, str(release.get("html_url") or ""), asset_url)
+            checksum = find_checksum_asset(release.get("assets") or [], asset_url)
+            best = (version, version_name, str(release.get("html_url") or ""), asset_url, checksum)
 
     result = WindowsUpdate(
         available=best is not None,
@@ -102,6 +136,7 @@ def check(force: bool = False) -> WindowsUpdate:
         asset_url=best[3] if best else None,
         checked_at=int(time.time()),
         failed=releases is None,
+        checksum_url=best[4] if best else None,
     )
     # A failure is recorded too, so callers polling check() don't retry it on
     # every call; it's retried after RETRY_INTERVAL_SECONDS.
@@ -136,7 +171,7 @@ param([string]$Root, [string]$New, [string]$Log, [switch]$NoMenu)
 $ErrorActionPreference = 'Stop'
 Start-Transcript -LiteralPath $Log -Append | Out-Null
 try {
-    & (Join-Path $Root 'python\python.exe') -m raofflineproxy.windows_launch --stop
+    & (Join-Path $Root 'python\python.exe') -m raofflineproxy.windows.launch --stop
     $python = (Join-Path $Root 'python').ToLower()
     $deadline = (Get-Date).AddSeconds(30)
     while ((Get-Date) -lt $deadline -and (Get-CimInstance Win32_Process |
@@ -182,7 +217,7 @@ try {
     Write-Output 'Update installed'
 } finally {
     # Start again either way: after a failure the old version is back in place.
-    $launch = @('-m', 'raofflineproxy.windows_launch')
+    $launch = @('-m', 'raofflineproxy.windows.launch')
     if ($NoMenu) { $launch += '--autostart' }
     Start-Process -FilePath (Join-Path $Root 'python\pythonw.exe') -ArgumentList $launch -WorkingDirectory $Root
     Stop-Transcript | Out-Null
@@ -192,19 +227,41 @@ try {
 """
 
 
-def download_and_launch_installer(asset_url: str, open_menu: bool = True) -> None:
+def releases_url() -> str:
+    from .paths import test_channel
+
+    return test_channel().get("update_releases_url") or load_config().get(RELEASES_URL_OVERRIDE_KEY) or GITHUB_RELEASES_URL
+
+
+def _download(url: str) -> bytes:
+    with urllib.request.urlopen(url, timeout=120, context=configured_ssl_context()) as response:
+        return response.read()
+
+
+def download_and_launch_installer(asset_url: str, open_menu: bool = True, checksum_url: str | None = None) -> None:
     """Downloads and unzips the release, then starts a script that stops this
     folder's proxy, tray and menu, swaps in the new program files and starts it
     again. The caller should exit right after."""
-    from .windows_paths import portable_root
+    import hashlib
+
+    from .paths import portable_root
 
     root = portable_root()
     if root is None:
         raise RuntimeError("updates install into the portable RAOfflineProxy folder")
+    source = releases_url()
+    for url in (asset_url, checksum_url):
+        if url and not allowed_download(url, source):
+            raise RuntimeError(f"refusing to download an update from {url}")
+    data = _download(asset_url)
+    if checksum_url:
+        fields = _download(checksum_url).decode("ascii", errors="replace").split()
+        expected = fields[0].lower() if fields else ""
+        if hashlib.sha256(data).hexdigest() != expected:
+            raise RuntimeError("the downloaded update doesn't match its published checksum")
     folder = Path(tempfile.mkdtemp(prefix="RAOfflineProxy-update-"))
     archive = folder / "update.zip"
-    with urllib.request.urlopen(asset_url, timeout=120, context=configured_ssl_context()) as response:
-        archive.write_bytes(response.read())
+    archive.write_bytes(data)
     with zipfile.ZipFile(archive) as bundle:
         bundle.extractall(folder / "new")
     marker = next((folder / "new").rglob("portable.txt"))

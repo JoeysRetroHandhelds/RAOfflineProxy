@@ -6,14 +6,17 @@ and cache date, and its achievement list (locked ones too when that setting is
 on) with descriptions and points. Mixed into WindowsMenuSession."""
 
 import json
+import logging
 import time
 from dataclasses import dataclass
 
-from . import cache_keys
-from .config import load_config, save_config
-from .rom_browser import CachedGameEntry, cached_achievements_by_id, merged_unlock_ids, remove_cached_game
-from .storage import PENDING_AWARD_STATUS_PENDING
-from .windows_settings import SHOW_LOCKED_KEY, setting_enabled
+from .. import cache_keys
+from ..config import load_config, save_config
+from ..rom_browser import CachedGameEntry, cached_achievements_by_id, merged_unlock_ids, remove_cached_game
+from ..storage import PENDING_AWARD_STATUS_PENDING
+from .settings import SHOW_LOCKED_KEY, setting_enabled
+
+LOGGER = logging.getLogger("raofflineproxy")
 
 CONSOLE_ACTIONS_VIEW = "win_console_actions"
 CONSOLE_REMOVE_CONFIRM_VIEW = "win_console_remove_confirm"
@@ -99,9 +102,16 @@ def load_game_info(storage, game: CachedGameEntry, pending_ids: set[int]) -> Gam
     )
 
 
+# Game details are loaded in the background and shown in batches of this many,
+# so a big library doesn't freeze the menu.
+GAME_INFO_BATCH = 25
+
+
 class GamesMixin:
     game_infos: dict[int, GameInfo] | None = None
     game_infos_stale: bool = True
+    game_infos_thread = None
+    game_infos_missing: int = 0
     search_query: str = ""
     active_console_id: int | None = None
     displayed_achievements: list[dict] = []
@@ -115,25 +125,50 @@ class GamesMixin:
         self.game_infos_stale = True
 
     def ensure_game_infos(self) -> dict[int, GameInfo]:
+        """The loaded details so far; a background thread fills in the rest.
+        Only that thread builds the dict, and it publishes a fresh one each
+        batch, so the menu never reads it mid-change."""
+        import threading
+
         if self.game_infos is None:
             self.game_infos = {}
-        if self.game_infos_stale:
+        loading = self.game_infos_thread is not None and self.game_infos_thread.is_alive()
+        if self.game_infos_stale and not loading:
             self.game_infos_stale = False
-            pending_ids = {
-                int(award.get("achievementId", 0))
-                for award in self.storage.get_pending_awards()
-                if award.get("status", PENDING_AWARD_STATUS_PENDING) == PENDING_AWARD_STATUS_PENDING
-            }
-            current = {game.game_id: game for game in self.cached_games}
-            for game_id in set(self.game_infos) - set(current):
-                del self.game_infos[game_id]
-            for game_id, game in current.items():
-                info = self.game_infos.get(game_id)
-                if info is None:
-                    self.game_infos[game_id] = load_game_info(self.storage, game, pending_ids)
-                else:
-                    info.pending = len(pending_ids & info.achievement_ids)
+            games = list(self.cached_games)
+            self.game_infos_thread = threading.Thread(
+                target=self.load_game_infos, args=(games, dict(self.game_infos)), daemon=True
+            )
+            self.game_infos_thread.start()
         return self.game_infos
+
+    def load_game_infos(self, games: list, known: dict[int, GameInfo]) -> None:
+        try:
+            self._load_game_infos(games, known)
+        except Exception:
+            LOGGER.exception("Loading cached game details failed")
+            self.game_infos_stale = True  # tried again on the next refresh
+        finally:
+            self.game_infos_missing = 0
+
+    def _load_game_infos(self, games: list, known: dict[int, GameInfo]) -> None:
+        pending_ids = {
+            int(award.get("achievementId", 0))
+            for award in self.storage.get_pending_awards()
+            if award.get("status", PENDING_AWARD_STATUS_PENDING) == PENDING_AWARD_STATUS_PENDING
+        }
+        current = {game.game_id: game for game in games}
+        infos = {game_id: info for game_id, info in known.items() if game_id in current}
+        for info in infos.values():
+            info.pending = len(pending_ids & info.achievement_ids)
+        missing = [game for game_id, game in current.items() if game_id not in infos]
+        self.game_infos_missing = len(missing)
+        self.game_infos = dict(infos)
+        for start in range(0, len(missing), GAME_INFO_BATCH):
+            for game in missing[start:start + GAME_INFO_BATCH]:
+                infos[game.game_id] = load_game_info(self.storage, game, pending_ids)
+            self.game_infos = dict(infos)
+            self.game_infos_missing = max(0, len(missing) - start - GAME_INFO_BATCH)
 
     def collapsed_consoles(self) -> set[int]:
         value = self.config_data.get(COLLAPSED_CONSOLES_KEY)
@@ -187,6 +222,8 @@ class GamesMixin:
         row = self.selected_row()
         if row is not None and row.kind == "game":
             return row.info.meta_text
+        if self.game_infos_missing:
+            return f"Loading game details: {self.game_infos_missing} left"
         return default
 
     def activate_cached_games_selected(self) -> None:

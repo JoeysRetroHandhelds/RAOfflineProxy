@@ -6,7 +6,7 @@ pending awards in the tooltip, and a Windows notification when the proxy goes
 offline or back online, starts caching, queues an award, syncs awards or
 fails to sync one. Right-click for the menu, start/stop and exit.
 
-Runs as its own process (python -m raofflineproxy.windows_tray), started at
+Runs as its own process (python -m raofflineproxy.windows.tray), started at
 sign-in by Start with Windows and by the Start script. It only reads the proxy's
 state files and database, every few seconds, so it can come and go without
 affecting the proxy. Win32 through ctypes, so nothing extra to install."""
@@ -18,11 +18,13 @@ import threading
 from ctypes import wintypes
 from pathlib import Path
 
-from . import cache_queue, windows_background, windows_history
-from .config import CONFIG_DIR, ONLINE_STATE_FILE
-from .service import process_is_running, process_matches_service
-from .state import load_json_file, load_pid
-from .storage import PENDING_AWARD_STATUS_PENDING, Storage
+from .. import cache_queue
+from . import background as windows_background
+from . import history as windows_history
+from ..config import CONFIG_DIR, ONLINE_STATE_FILE
+from ..service import process_is_running, process_matches_service
+from ..state import load_json_file, load_pid
+from ..storage import PENDING_AWARD_STATUS_PENDING, Storage
 
 POLL_MS = 5000
 ICON_FILE = CONFIG_DIR / "tray.ico"
@@ -126,7 +128,7 @@ class MSG(ctypes.Structure):
 
 def write_icon() -> Path | None:
     """An .ico wrapping a 64px PNG of the app logo (ICO files may hold PNG data)."""
-    logo = Path(__file__).resolve().parent / "logo-320.png"
+    logo = Path(__file__).resolve().parent.parent / "logo-320.png"
     if ICON_FILE.exists() or not logo.exists():
         return ICON_FILE if ICON_FILE.exists() else None
     try:
@@ -280,11 +282,11 @@ class Tray:
             self.update_thread.start()
 
     def check_for_update(self) -> None:
-        """At most one network check a day (windows_update caches the result),
+        """At most one network check a day (update.py caches the result),
         and one notification per new version."""
-        from .config import load_config
-        from .windows_settings import UPDATE_CHECK_KEY, setting_enabled
-        from .windows_update import check
+        from ..config import load_config
+        from .settings import UPDATE_CHECK_KEY, setting_enabled
+        from .update import check
 
         try:
             if not setting_enabled(load_config(), UPDATE_CHECK_KEY):
@@ -299,7 +301,7 @@ class Tray:
 
     def open_menu(self) -> None:
         # Its own process, so the tray stays responsive while it's open.
-        from .windows_process import pythonw_command
+        from .process import pythonw_command
 
         subprocess.Popen(pythonw_command("raofflineproxy.main", "menu"))
 

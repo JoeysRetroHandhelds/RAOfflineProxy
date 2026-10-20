@@ -38,6 +38,7 @@ from .config import (
     running_on_rocknix,
     running_on_spruce,
     running_on_darkos,
+    running_on_windows,
     save_config,
 )
 from .platform import (
@@ -136,9 +137,9 @@ from .menu_input import (
     read_keys,
 )
 
-if sys.platform == "win32":
+if running_on_windows():
     # No /dev/input on Windows: gamepads come through SDL instead, as the same codes.
-    from .windows_input import close_input_devices, open_input_devices, read_keys
+    from .windows.input import close_input_devices, open_input_devices, read_keys
 
 SDL_LOG_PATH = CONFIG_DIR / "menu-sdl.log"
 STALE_HOOK_PATH = Path("/userdata/system/scripts/RAOfflineProxy_game_hook.sh")
@@ -352,8 +353,8 @@ def run_menu_sdl(command_runner: str) -> None:
     log_menu_sdl(
         f"run_menu_sdl start python={sys.version.split()[0]} executable={sys.executable}"
     )
-    if sys.platform == "win32":
-        from .windows_input import show_existing_menu
+    if running_on_windows():
+        from .windows.input import show_existing_menu
 
         if show_existing_menu():
             log_menu_sdl("menu already open; brought it to the front")
@@ -364,8 +365,8 @@ def run_menu_sdl(command_runner: str) -> None:
         pygame.init()
         pygame.font.init()
 
-        if sys.platform == "win32":
-            from .windows_input import open_menu_window
+        if running_on_windows():
+            from .windows.input import open_menu_window
 
             surface = open_menu_window(pygame, load_config())
         elif running_on_mini_sdl_stack():
@@ -404,8 +405,8 @@ def run_menu_sdl(command_runner: str) -> None:
         width, height = surface.get_size()
         log_menu_sdl(f"display set_mode surface_size={width}x{height}")
         session_class = MenuSdlSession
-        if sys.platform == "win32":
-            from .windows_menu import WindowsMenuSession as session_class
+        if running_on_windows():
+            from .windows.menu import WindowsMenuSession as session_class
         session = session_class(command_runner, surface, width, height, pygame)
         session.run()
     except Exception:
@@ -1585,7 +1586,7 @@ class MenuSdlSession:
         )
 
     def needs_controller_calibration(self) -> bool:
-        if sys.platform == "win32":
+        if running_on_windows():
             # SDL's GameController mapping already puts A/B at BTN_SOUTH/BTN_EAST,
             # which is_confirm_key/is_cancel_key default to.
             return False

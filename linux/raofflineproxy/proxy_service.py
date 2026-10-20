@@ -7,7 +7,6 @@ from collections.abc import Sequence
 from pathlib import Path
 import socket
 import socketserver
-import sys
 import threading
 import time
 from http import HTTPStatus
@@ -25,6 +24,7 @@ from .config import (
     image_caching_enabled,
     proxy_host,
     proxy_port,
+    running_on_windows,
     upstream_host,
 )
 from .flusher import flush_pending_awards
@@ -211,8 +211,8 @@ def _start_image_downloads(
 
 class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     # Windows SO_REUSEADDR lets a second server bind over a live one, so it is
-    # POSIX-only (see windows_process.make_probe_exclusive).
-    allow_reuse_address = sys.platform != "win32"
+    # POSIX-only (see windows/process.py, make_probe_exclusive).
+    allow_reuse_address = not running_on_windows()
     daemon_threads = True
 
 

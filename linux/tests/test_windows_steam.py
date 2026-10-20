@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from linux.raofflineproxy import windows_steam as steam
+from linux.raofflineproxy.windows import steam as steam
 
 # A shortcuts.vdf as Steam writes it, with one other non-Steam game.
 EXISTING = (

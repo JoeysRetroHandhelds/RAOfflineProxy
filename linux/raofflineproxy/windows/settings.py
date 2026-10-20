@@ -7,12 +7,13 @@ whole database. Mixed into WindowsMenuSession."""
 
 import time
 
-from . import usage_stats, windows_history
-from .config import MAX_PROXY_PORT, MIN_PROXY_PORT, load_config, proxy_port, save_config
-from .menu_sdl import ERROR_SECONDS
-from .platform import is_autostart_enabled
-from .rom_browser import clear_cached_games
-from .storage import (
+from .. import usage_stats
+from . import history as windows_history
+from ..config import MAX_PROXY_PORT, MIN_PROXY_PORT, load_config, proxy_port, save_config
+from ..menu_sdl import ERROR_SECONDS
+from ..platform import is_autostart_enabled
+from ..rom_browser import clear_cached_games
+from ..storage import (
     PENDING_AWARD_STATUS_DELETED,
     PENDING_AWARD_STATUS_FLUSHED,
     PENDING_AWARD_STATUS_PENDING,
@@ -75,7 +76,7 @@ ROW_CAPTIONS = {
 
 
 def windows_paths_root():
-    from .windows_paths import portable_root
+    from .paths import portable_root
 
     return portable_root()
 
@@ -97,10 +98,10 @@ def start_tray() -> None:
     """The tray exits at once when one is already running (it holds a mutex)."""
     import subprocess
 
-    from .windows_process import pythonw_command
+    from .process import pythonw_command
 
     try:
-        subprocess.Popen(pythonw_command("raofflineproxy.windows_tray"))
+        subprocess.Popen(pythonw_command("raofflineproxy.windows.tray"))
     except OSError:
         pass
 
@@ -151,13 +152,7 @@ class SettingsMixin:
             self.edit_proxy_port()
         elif name == AUTOSTART_ROW:
             self.config_data = load_config()
-            try:
-                if is_autostart_enabled(self.config_data):
-                    self.turn_off_autostart()
-                else:
-                    self.turn_on_autostart()
-            except OSError as exc:
-                self.flash(f"Autostart failed: {exc}", ERROR_SECONDS)
+            self.change_autostart(not is_autostart_enabled(self.config_data))
         elif name == SMART_CACHE_ROW:
             self.toggle_setting(SMART_CACHE_ON_START_KEY)
         elif name == SHOW_LOCKED_ROW:
@@ -185,10 +180,33 @@ class SettingsMixin:
 
     # Start with Windows ---------------------------------------------------------
 
+    autostart_thread = None
+
+    def change_autostart(self, enable: bool) -> None:
+        """In the background: the admin prompt waits for an answer, and the menu
+        keeps drawing (and stays responsive) meanwhile."""
+        import threading
+
+        if self.autostart_thread is not None and self.autostart_thread.is_alive():
+            return
+
+        def worker() -> None:
+            try:
+                if enable:
+                    self.turn_on_autostart()
+                else:
+                    self.turn_off_autostart()
+            except Exception as exc:  # e.g. the prompt left unanswered past the timeout
+                self.flash(f"Start with Windows failed: {exc}", ERROR_SECONDS)
+
+        self.flash("Waiting for the admin prompt...", 300)
+        self.autostart_thread = threading.Thread(target=worker, daemon=True)
+        self.autostart_thread.start()
+
     def turn_on_autostart(self) -> None:
         """A logon task needs one admin prompt; without it, the Run entry, which
         Windows' Xbox full screen mode doesn't start."""
-        from . import windows_autostart
+        from . import autostart as windows_autostart
 
         if windows_autostart.enable() == "task":
             self.flash("Starts when you sign in, in Xbox mode too", 3)
@@ -196,9 +214,11 @@ class SettingsMixin:
             self.flash("Starts when you sign in (not in Xbox mode: the admin prompt was declined)", 5)
 
     def turn_off_autostart(self) -> None:
-        from . import windows_autostart
+        from . import autostart as windows_autostart
 
-        if not windows_autostart.disable():
+        if windows_autostart.disable():
+            self.flash("Start with Windows is off", 3)
+        else:
             self.flash("Still on: removing it needs the admin prompt", ERROR_SECONDS)
 
     # Add to Steam ---------------------------------------------------------------
@@ -208,7 +228,7 @@ class SettingsMixin:
     steam_was_running = False
 
     def open_add_to_steam(self) -> None:
-        from . import windows_steam
+        from . import steam as windows_steam
 
         if windows_paths_root() is None:
             self.flash("Add to Steam needs the portable RAOfflineProxy folder", ERROR_SECONDS)
@@ -250,8 +270,8 @@ class SettingsMixin:
         def worker() -> None:
             from pathlib import Path
 
-            from . import windows_steam
-            from .windows_tray import write_icon
+            from . import steam as windows_steam
+            from .tray import write_icon
 
             root = windows_steam.steam_root()
             closed = False
@@ -261,7 +281,7 @@ class SettingsMixin:
                         self.flash("Steam didn't close. Close it and try again.", ERROR_SECONDS)
                         return
                     closed = True
-                logo = Path(__file__).resolve().parent / "logo-320.png"
+                logo = Path(__file__).resolve().parent.parent / "logo-320.png"
                 windows_steam.add_to_steam(account, windows_paths_root(), write_icon(), logo)
                 self.flash("Added to Steam", 3)
             except (OSError, ValueError) as exc:

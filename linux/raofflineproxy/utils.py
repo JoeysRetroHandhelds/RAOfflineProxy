@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import re
-import sys
 from pathlib import Path
 from urllib.parse import parse_qsl, quote_plus, unquote_plus, urlencode, urlsplit
 
-from . import windows_paths
-from .config import FALLBACK_USER_AGENT, PROXY_UA_TAG
+from .config import FALLBACK_USER_AGENT, PROXY_UA_TAG, running_on_windows
 
 
 def sha256_hex(value: str) -> str:
@@ -136,7 +134,9 @@ def decode_value(value: str) -> str:
 
 
 def write_emulator_config(target: Path, content: str) -> None:
-    if sys.platform == "win32":
-        windows_paths.write_preserving_newlines(target, content)
+    if running_on_windows():
+        from .windows.paths import write_preserving_newlines
+
+        write_preserving_newlines(target, content)
     else:
         target.write_text(content, encoding="utf-8")

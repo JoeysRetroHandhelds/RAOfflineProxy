@@ -16,7 +16,7 @@ their patchers skip. RetroArch's patcher instead refuses a missing cfg (only
 Batocera-style devices may lack one), so its placeholder is an empty cfg in the
 data folder that the proxy patches and reverts harmlessly.
 
-Run as a module (python -m raofflineproxy.windows_emulators) to detect and
+Run as a module (python -m raofflineproxy.windows.emulators) to detect and
 save; the portable folder's first start does that."""
 
 import ctypes
@@ -27,8 +27,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import windows_paths
-from .config import CONFIG_DIR, load_config, save_config
+from . import paths as windows_paths
+from ..config import CONFIG_DIR, load_config, save_config
 
 STATE_KEY = "windows_emulators"
 DISABLED_DIR = CONFIG_DIR / "disabled-emulators"

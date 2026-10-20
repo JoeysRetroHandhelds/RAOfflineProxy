@@ -4,7 +4,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from linux.raofflineproxy import config, windows_paths
+from linux.raofflineproxy import config
+from linux.raofflineproxy.windows import paths as windows_paths
 
 
 class WindowsConfigPathTests(unittest.TestCase):

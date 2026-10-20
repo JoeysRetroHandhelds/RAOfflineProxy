@@ -10,7 +10,7 @@ import json
 import os
 import subprocess
 
-from .config import CONFIG_DIR
+from ..config import CONFIG_DIR
 
 PROGRESS_FILE = CONFIG_DIR / "smart_cache.progress.jsonl"
 # The command's errors: it exits with one when offline or not logged in.
@@ -22,7 +22,7 @@ ABORT_FILE = CONFIG_DIR / "smart_cache.abort"
 
 
 def running_pid() -> int | None:
-    from .windows_process import process_image_name, process_is_running
+    from .process import process_image_name, process_is_running
 
     try:
         pid = int(PID_FILE.read_text(encoding="utf-8").strip())
@@ -39,7 +39,7 @@ def is_running() -> bool:
 
 def start() -> bool:
     """False when a run is already going."""
-    from .windows_process import detached_popen_kwargs, pythonw_command
+    from .process import detached_popen_kwargs, pythonw_command
 
     if is_running():
         return False

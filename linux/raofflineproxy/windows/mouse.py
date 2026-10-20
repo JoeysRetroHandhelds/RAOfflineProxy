@@ -5,7 +5,7 @@ hover highlights a row, left click opens it, right click goes back and the
 wheel scrolls. On the on-screen keyboard a click presses the key. Mixed into
 WindowsMenuSession."""
 
-from .windows_keyboard import KEYBOARD_VIEW
+from .keyboard import KEYBOARD_VIEW
 
 
 class MouseMixin:

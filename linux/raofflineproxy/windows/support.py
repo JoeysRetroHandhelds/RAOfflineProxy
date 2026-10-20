@@ -11,12 +11,12 @@ import threading
 import urllib.request
 import webbrowser
 
-from . import windows_update
-from .config import APP_VERSION, PROXY_UA_TAG, load_config
-from .log_uploader import REQUEST_TIMEOUT_SECONDS
-from .menu_sdl import ERROR_SECONDS
-from .network import configured_ssl_context
-from .windows_settings import UPDATE_CHECK_KEY, setting_enabled
+from . import update as windows_update
+from ..config import APP_VERSION, PROXY_UA_TAG, load_config
+from ..log_uploader import REQUEST_TIMEOUT_SECONDS
+from ..menu_sdl import ERROR_SECONDS
+from ..network import configured_ssl_context
+from .settings import UPDATE_CHECK_KEY, setting_enabled
 
 SUPPORT_VIEW = "win_support"
 SUPPORT_AMOUNTS_VIEW = "win_support_amounts"
@@ -258,7 +258,7 @@ class SupportMixin:
                 if not info.available:
                     self.flash("Already up to date")
                     return
-                windows_update.download_and_launch_installer(info.asset_url)
+                windows_update.download_and_launch_installer(info.asset_url, checksum_url=info.checksum_url)
             except Exception as exc:
                 self.flash(f"Update failed: {exc}", ERROR_SECONDS)
                 return

@@ -39,15 +39,14 @@ cp "${LINUX_DIR}/../docs/public/logo-320.png" "${APP_DIR}/raofflineproxy/logo-32
 cp "${SCRIPT_DIR}/native/raproxy_rchash.dll" "${SCRIPT_DIR}/native/zstd.dll" "${APP_DIR}/raofflineproxy/"
 # Portable layout: nothing is installed. Start/Stop scripts at the top, the app's
 # data/ created next to them on first start, and portable.txt marking the folder
-# (windows_paths.portable_root). .cmd files get CRLF line endings for cmd.exe.
+# (windows/paths.py, portable_root). .cmd files get CRLF line endings for cmd.exe.
 for script in "Start RAOfflineProxy.cmd" "Stop RAOfflineProxy.cmd" "README.txt"; do
-  sed 's/*$//' "${SCRIPT_DIR}/${script}" > "${DIST_DIR}/${script}"
+  sed 's/\r*$/\r/' "${SCRIPT_DIR}/${script}" > "${DIST_DIR}/${script}"
 done
-printf '%s
-' "This folder is a portable RAOfflineProxy. Keep this file: it marks the folder."   > "${DIST_DIR}/portable.txt"
+printf '%s\r\n' "This folder is a portable RAOfflineProxy. Keep this file: it marks the folder."   > "${DIST_DIR}/portable.txt"
 
 # Test builds only: RAOFFLINEPROXY_TEST_CHANNEL names a testing.json that sends
-# Send Logs and updates to test destinations (windows_paths.test_channel).
+# Send Logs and updates to test destinations (windows/paths.py, test_channel).
 # Release and nightly builds never set it, and CI checks they carry no such file.
 if [ -n "${RAOFFLINEPROXY_TEST_CHANNEL:-}" ]; then
   cp "${RAOFFLINEPROXY_TEST_CHANNEL}" "${DIST_DIR}/testing.json"
