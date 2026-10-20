@@ -199,6 +199,7 @@ class WindowsMenuSession(MouseMixin, StatusPanelMixin, SupportMixin, EmulatorsMi
 
     def render(self) -> None:
         self.start_update_check()
+        self.show_update_found_by_check()
         if self.view == KEYBOARD_VIEW and self.keyboard is not None:
             self.render_keyboard()
             return

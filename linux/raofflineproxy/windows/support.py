@@ -232,13 +232,27 @@ class SupportMixin:
         def worker() -> None:
             try:
                 self.update_info = windows_update.check(force=force)
-                if force and not self.update_info.available:
+                if force and self.update_info.available:
+                    # Opened by the menu's own thread (render), not from here.
+                    self.update_found_by_check = True
+                elif force:
                     self.flash(f"You're on the latest version ({APP_VERSION})")
             except Exception as exc:
                 if force:
                     self.flash(f"Update check failed: {exc}", ERROR_SECONDS)
 
         threading.Thread(target=worker, daemon=True).start()
+
+    update_found_by_check = False
+
+    def show_update_found_by_check(self) -> None:
+        """"Check for updates now" found one: show it there and then, rather
+        than only as a new entry back on the main menu."""
+        if not self.update_found_by_check:
+            return
+        self.update_found_by_check = False
+        self.open_view(UPDATE_VIEW, "main")
+        self.reset_selection()
 
     def update_label(self) -> str | None:
         info = self.update_info
