@@ -437,6 +437,33 @@ def detect_batocera_conf(config_data: dict) -> str | None:
     return None
 
 
+# Desktop Linux (SteamOS, EmuDeck, Discover and other Flatpak installs). Built per
+# call from Path.home(), so nothing runs at import time on any platform.
+FLATPAK_RETROARCH_ID = "org.libretro.RetroArch"
+FLATPAK_DOLPHIN_ID = "org.DolphinEmu.dolphin-emu"
+FLATPAK_PPSSPP_ID = "org.ppsspp.PPSSPP"
+
+
+def flatpak_config_home(app_id: str) -> Path:
+    return Path.home() / ".var" / "app" / app_id / "config"
+
+
+def flatpak_retroarch_cfg() -> Path:
+    return flatpak_config_home(FLATPAK_RETROARCH_ID) / "retroarch" / "retroarch.cfg"
+
+
+def flatpak_dolphin_config_dir() -> Path:
+    return flatpak_config_home(FLATPAK_DOLPHIN_ID) / "dolphin-emu"
+
+
+def flatpak_ppsspp_ini() -> Path:
+    return flatpak_config_home(FLATPAK_PPSSPP_ID) / "ppsspp" / "PSP" / "SYSTEM" / "ppsspp.ini"
+
+
+def native_retroarch_cfg() -> Path:
+    return Path.home() / ".config" / "retroarch" / "retroarch.cfg"
+
+
 def _retroarch_cfg_lookup() -> tuple[tuple[Callable[[], bool], tuple[Path, ...]], ...]:
     """Platform gate paired with that platform's cfg candidates, most specific first.
 
@@ -462,6 +489,12 @@ def _retroarch_cfg_lookup() -> tuple[tuple[Callable[[], bool], tuple[Path, ...]]
             (spruce_retroarch_cfg(),) if running_on_spruce() else (),
         ),
         (lambda: Path("/mnt/SDCARD").exists(), tuple(SDCARD_RETROARCH_CFG_CANDIDATES)),
+        # Last, and only when there is no regular RetroArch install: someone with both
+        # keeps getting ~/.config/retroarch, as before.
+        (
+            lambda: flatpak_retroarch_cfg().exists() and not native_retroarch_cfg().exists(),
+            (flatpak_retroarch_cfg(),),
+        ),
         # The placeholder comes last, so it's used only when no RetroArch exists.
         (running_on_windows, _windows_retroarch_candidates()),
     )
@@ -480,7 +513,7 @@ def detect_retroarch_cfg() -> str:
                 return str(candidate)
         return str(candidates[0])
 
-    return str(Path.home() / ".config" / "retroarch" / "retroarch.cfg")
+    return str(native_retroarch_cfg())
 
 
 def detect_rocknix_system_cfg(config_data: dict | None = None) -> str | None:
@@ -532,6 +565,9 @@ def detect_ppsspp_ini(config_data: dict) -> str | None:
         if windows_ini is not None:
             return str(windows_ini)
 
+    if flatpak_ppsspp_ini().exists():
+        return str(flatpak_ppsspp_ini())
+
     return None
 
 
@@ -553,6 +589,9 @@ def detect_dolphin_config_dir(config_data: dict) -> str | None:
         windows_dir = paths.dolphin_config_dir()
         if windows_dir is not None:
             return str(windows_dir)
+
+    if flatpak_dolphin_config_dir().exists():
+        return str(flatpak_dolphin_config_dir())
 
     return None
 
