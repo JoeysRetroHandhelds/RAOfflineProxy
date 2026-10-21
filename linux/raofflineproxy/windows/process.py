@@ -150,10 +150,25 @@ def _identity_file() -> Path:
     return CONFIG_DIR / "service.identity.json"
 
 
+def _wanted_file() -> Path:
+    from ..config import CONFIG_DIR
+
+    return CONFIG_DIR / "proxy_wanted"
+
+
+def proxy_wanted() -> bool:
+    """The proxy was started and not stopped since: it was running when Windows
+    shut down or crashed, so the sign-in check starts it again."""
+    return _wanted_file().exists()
+
+
 def remember_service(pid: int) -> None:
     """Records the spawned service's creation time next to its pid, so a pid
     Windows later hands to another process can't pass for the service."""
     import json
+
+    _wanted_file().parent.mkdir(parents=True, exist_ok=True)
+    _wanted_file().touch()
 
     created = process_creation_time(pid)
     target = _identity_file()
@@ -214,6 +229,8 @@ def make_probe_exclusive(sock) -> None:
 # stopping is a request file the service polls for, with TerminateProcess
 # only as the timeout fallback.
 def request_stop(stop_file: Path) -> None:
+    # A deliberate stop (menu, tray, Stop script, update): not started again at sign-in.
+    _wanted_file().unlink(missing_ok=True)
     stop_file.parent.mkdir(parents=True, exist_ok=True)
     stop_file.touch()
 
@@ -249,10 +266,10 @@ def pythonw_command(module: str, *args: str) -> list[str]:
 
 # Start with Windows lives in autostart.py, which survives the portable
 # folder changing drive letter; these keep the names platform.py calls.
-def autostart_enabled() -> bool:
+def autostart_enabled(config_data: dict | None = None) -> bool:
     from . import autostart as windows_autostart
 
-    return windows_autostart.is_enabled()
+    return windows_autostart.is_enabled(config_data)
 
 
 def enable_autostart() -> None:
