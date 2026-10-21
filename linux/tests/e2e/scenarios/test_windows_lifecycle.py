@@ -293,7 +293,9 @@ def original_run_value():
     return None if "raop-win-e2e-" in value else value
 
 
-@pytest.fixture
+# Every test: starting the portable app installs the sign-in check (a Run entry)
+# in the real HKCU, so each one puts the machine's own entry back afterwards.
+@pytest.fixture(autouse=True)
 def run_key_restored(original_run_value):
     import winreg
 
