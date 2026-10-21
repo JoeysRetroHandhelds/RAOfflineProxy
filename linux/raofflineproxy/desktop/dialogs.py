@@ -28,3 +28,15 @@ def ask(text: str) -> bool:
         return subprocess.run(["zenity", "--question", "--title", TITLE, "--text", text], check=False).returncode == 0
     print(text + " (no dialog tool found, so skipped)")
     return False
+
+
+def continue_or_cancel(text: str) -> bool:
+    if shutil.which("kdialog"):
+        return subprocess.run(["kdialog", "--title", TITLE, "--warningcontinuecancel", text], check=False).returncode == 0
+    if shutil.which("zenity"):
+        return subprocess.run(
+            ["zenity", "--question", "--title", TITLE, "--ok-label", "Continue", "--cancel-label", "Cancel", "--text", text],
+            check=False,
+        ).returncode == 0
+    print(text)
+    return False

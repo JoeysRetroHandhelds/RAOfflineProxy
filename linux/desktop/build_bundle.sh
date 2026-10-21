@@ -43,7 +43,7 @@ cp "${LINUX_DIR}/../docs/public/logo-320.png" "${APP_DIR}/raofflineproxy/logo-32
 # rom_hashing.py looks in ../lib next to the package.
 cp "${SCRIPT_DIR}/native/libraproxy_rchash.so" "${APP_DIR}/lib/"
 
-for script in "Start RAOfflineProxy.sh" "Stop RAOfflineProxy.sh" "Send Logs.sh" "README.txt"; do
+for script in "Start RAOfflineProxy.sh" "Stop RAOfflineProxy.sh" "Send Logs.sh" "Start Automatically.sh" "README.txt"; do
   sed 's/\r$//' "${SCRIPT_DIR}/${script}" > "${DIST_DIR}/${script}"
 done
 # Marks the folder as the desktop bundle (config.desktop_bundle_root).
