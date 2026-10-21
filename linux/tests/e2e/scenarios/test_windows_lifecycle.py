@@ -278,15 +278,26 @@ def installed(windows_bundle, fake_ra):
         shutil.rmtree(root, ignore_errors=True)
 
 
-@pytest.fixture
-def run_key_restored():
+@pytest.fixture(scope="session")
+def original_run_value():
+    """The machine's own Run entry, read once before any test touches it. A
+    value pointing into a test folder is a leftover from an interrupted run,
+    never something to put back."""
     import winreg
 
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
-            saved = winreg.QueryValueEx(key, "RAOfflineProxy")[0]
+            value = winreg.QueryValueEx(key, "RAOfflineProxy")[0]
     except OSError:
-        saved = None
+        return None
+    return None if "raop-win-e2e-" in value else value
+
+
+@pytest.fixture
+def run_key_restored(original_run_value):
+    import winreg
+
+    saved = original_run_value
     yield
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
         if saved is None:
