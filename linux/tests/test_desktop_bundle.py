@@ -21,7 +21,7 @@ PROBE = """
 import json, sys
 sys.platform = "linux"
 from raofflineproxy import config
-print(json.dumps({"desktop": config.running_on_desktop(), "config_dir": str(config.CONFIG_DIR)}))
+print(json.dumps({"desktop": config.running_on_desktop(), "config_dir": str(config.CONFIG_DIR), "port": config.proxy_port({})}))
 """
 
 
@@ -47,6 +47,8 @@ class BundleDetectionTests(unittest.TestCase):
             result = probe(root)
         self.assertTrue(result["desktop"])
         self.assertEqual(Path(result["config_dir"]), (root / "data").resolve())
+        # Not 8080: Steam's Game Mode debugger (and Decky Loader) need that one.
+        self.assertEqual(result["port"], 18080)
 
     def test_without_the_marker_nothing_changes(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -54,6 +56,7 @@ class BundleDetectionTests(unittest.TestCase):
             result = probe(root)
         self.assertFalse(result["desktop"])
         self.assertNotIn(str(root), result["config_dir"])
+        self.assertEqual(result["port"], 8080)
 
 
 def release(tag: str, *names: str) -> dict:

@@ -323,6 +323,10 @@ DEFAULT_PROXY_PORT = 8080
 # spruce ships SFTPGo bound to 0.0.0.0:8080 (its sftpgo.json httpd binding) and starts it
 # whenever SFTPGo is enabled in Network Settings, so the usual default can never bind.
 SPRUCE_DEFAULT_PROXY_PORT = 8099
+# In Steam's Game Mode (SteamOS, Anatase, Bazzite...) Steam opens its CEF debugger on
+# 127.0.0.1:8080 when remote debugging is on, which Decky Loader connects to. The
+# sign-in service starts the proxy before Steam, so 8080 would lock both out.
+DESKTOP_DEFAULT_PROXY_PORT = 18080
 MIN_PROXY_PORT = 1024
 MAX_PROXY_PORT = 65535
 
@@ -402,6 +406,8 @@ def save_config(data: dict) -> None:
 
 
 def default_proxy_port() -> int:
+    if running_on_desktop():
+        return DESKTOP_DEFAULT_PROXY_PORT
     return SPRUCE_DEFAULT_PROXY_PORT if running_on_spruce() else DEFAULT_PROXY_PORT
 
 
