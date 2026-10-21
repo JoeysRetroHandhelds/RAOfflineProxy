@@ -160,6 +160,9 @@ def _request_upload_target() -> tuple[str, str]:
 
 
 def _platform_label() -> str:
+    # The distro's own name (Anatase, SteamOS, Bazzite...), not a handheld firmware.
+    if config.running_on_desktop():
+        return _os_release_field("NAME") or "Linux"
     if config.running_on_spruce():
         return "spruce"
     if config.running_on_onion():
@@ -334,6 +337,12 @@ def device_metadata() -> dict[str, str | list[str]]:
         from .windows.account import metadata_overrides
 
         metadata.update(metadata_overrides(config_data))
+    elif config.running_on_desktop():
+        from .desktop.logs import patched_emulators
+
+        emulators = patched_emulators()
+        if emulators:
+            metadata["emulator"] = emulators
 
     return metadata
 

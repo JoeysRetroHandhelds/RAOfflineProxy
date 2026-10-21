@@ -166,10 +166,37 @@ class SendLogsTests(unittest.TestCase):
         self.assertEqual(where, "smb://host/z/logs/x.zip")
         self.assertEqual(calls, [["kioclient", "copy", str(Path("/tmp/x.zip")), "smb://host/z/logs/x.zip"]])
 
+    def test_a_missing_share_folder_is_created(self) -> None:
+        calls = []
+
+        def run(command, **kwargs):
+            calls.append(command)
+            # The file copy fails (no folder); copying a folder of that name works.
+            return subprocess.CompletedProcess(command, 0 if len(calls) == 2 else 1, "", "Could not write")
+
+        with mock.patch.object(logs.shutil, "which", side_effect=lambda name: name if name == "kioclient" else None), \
+                mock.patch.object(logs.subprocess, "run", side_effect=run):
+            where = logs.copy_to(Path(__file__), "smb://host/z/logs")
+        self.assertEqual(where, f"smb://host/z/logs/{Path(__file__).name}")
+        self.assertEqual(Path(calls[1][2]).name, "logs")
+        self.assertEqual(calls[1][3], "smb://host/z/")
+
     def test_a_share_without_a_copy_tool_says_so(self) -> None:
         with mock.patch.object(logs.shutil, "which", return_value=None):
             with self.assertRaisesRegex(RuntimeError, "no kioclient or gio"):
                 logs.copy_to(Path("/tmp/x.zip"), "smb://host/z/logs")
+
+
+class DeviceInfoTests(unittest.TestCase):
+    def test_desktop_reports_the_distro_not_a_handheld_firmware(self) -> None:
+        from linux.raofflineproxy import config, log_uploader
+
+        with tempfile.TemporaryDirectory() as temp:
+            os_release = Path(temp) / "os-release"
+            os_release.write_text('NAME="Anatase"\nPRETTY_NAME="Anatase 20261019"\n')
+            with mock.patch.object(config, "running_on_desktop", return_value=True), \
+                    mock.patch.object(config, "OS_RELEASE_PATH", os_release):
+                self.assertEqual(log_uploader._platform_label(), "Anatase")
 
 
 if __name__ == "__main__":
