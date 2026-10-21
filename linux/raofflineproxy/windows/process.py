@@ -310,3 +310,38 @@ def processes_from_folder(root: Path, exclude_self: bool = False) -> list[int]:
         finally:
             _kernel32.CloseHandle(handle)
     return found
+
+
+_kernel32.CreateFileW.argtypes = [
+    wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
+]
+_kernel32.CreateFileW.restype = wintypes.HANDLE
+_FILE_APPEND_DATA = 0x0004
+_FILE_SHARE_ALL = 0x1 | 0x2 | 0x4  # read, write, delete (which allows renaming)
+_OPEN_ALWAYS = 4
+_INVALID_HANDLE = wintypes.HANDLE(-1).value
+
+
+def open_log_for_append(path: str, encoding: str | None, errors: str | None):
+    """A log file other processes can rename while this one has it open, as on
+    Linux. Without FILE_SHARE_DELETE, the service's log can't roll over while
+    the menu or a command (each logging to the same file) has it open, and
+    grows without limit."""
+    import msvcrt
+    import os
+
+    handle = _kernel32.CreateFileW(path, _FILE_APPEND_DATA, _FILE_SHARE_ALL, None, _OPEN_ALWAYS, 0, None)
+    if handle in (None, _INVALID_HANDLE):
+        raise ctypes.WinError(ctypes.get_last_error())
+    fd = msvcrt.open_osfhandle(handle, os.O_APPEND | os.O_WRONLY)
+    return open(fd, "a", encoding=encoding, errors=errors)
+
+
+def rotating_log_handler(path: str, max_bytes: int, backup_count: int, encoding: str):
+    import logging.handlers
+
+    class SharedRotatingFileHandler(logging.handlers.RotatingFileHandler):
+        def _open(self):
+            return open_log_for_append(self.baseFilename, self.encoding, self.errors)
+
+    return SharedRotatingFileHandler(path, maxBytes=max_bytes, backupCount=backup_count, encoding=encoding)

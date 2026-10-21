@@ -182,6 +182,8 @@ TASK_CACHE_SECONDS = 5
 def task_exists() -> bool:
     import time
 
+    if os.environ.get(MODE_ENV) == "run":
+        return False  # the Run entry only, whatever tasks this machine has
     global _task_cache
     if _task_cache is not None and time.monotonic() - _task_cache[0] < TASK_CACHE_SECONDS:
         return _task_cache[1]
