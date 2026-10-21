@@ -31,6 +31,7 @@ log_uploader._log_file_paths()
 print(json.dumps({
     "ua": config.PROXY_UA_TAG,
     "windows_modules": sorted(name for name in sys.modules if ".raofflineproxy.windows" in name),
+    "desktop_modules": sorted(name for name in sys.modules if ".raofflineproxy.desktop" in name),
     "usage_platform": usage_report.build_payload("user", {}, "release", {}, {})["platform"],
     "update_log_listed": any(path.name == "update.log" for path in log_uploader._log_file_paths()),
 }))
@@ -56,6 +57,9 @@ class OffWindowsTests(unittest.TestCase):
 
     def test_no_windows_code_loads(self) -> None:
         self.assertEqual(self.probe["windows_modules"], [])
+
+    def test_no_desktop_code_loads_outside_the_desktop_bundle(self) -> None:
+        self.assertEqual(self.probe["desktop_modules"], [])
 
     def test_usage_reports_stay_linux(self) -> None:
         self.assertEqual(self.probe["usage_platform"], "linux")

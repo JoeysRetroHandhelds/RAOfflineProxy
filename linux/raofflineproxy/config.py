@@ -248,6 +248,24 @@ def running_on_windows() -> bool:
     return sys.platform == "win32"
 
 
+DESKTOP_MARKER = "desktop.txt"
+
+
+def desktop_bundle_root() -> Path | None:
+    """The unpacked desktop Linux bundle (<root>/app/raofflineproxy/config.py,
+    with a desktop.txt marker at <root>). None everywhere else: the device
+    bundles and source checkouts have no marker there."""
+    parents = Path(__file__).resolve().parents
+    if len(parents) < 3:
+        return None
+    root = parents[2]
+    return root if (root / DESKTOP_MARKER).is_file() else None
+
+
+def running_on_desktop() -> bool:
+    return not running_on_windows() and desktop_bundle_root() is not None
+
+
 def _windows_retroarch_candidates() -> tuple[Path, ...]:
     if not running_on_windows():
         return ()
@@ -260,6 +278,10 @@ def resolve_config_dir() -> Path:
     configured = os.environ.get("RAOFFLINEPROXY_CONFIG_DIR")
     if configured:
         return Path(configured).expanduser()
+
+    # Kept in the bundle, so an update that swaps app/ leaves it alone.
+    if running_on_desktop():
+        return desktop_bundle_root() / "data"
 
     xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
     if xdg_config_home:

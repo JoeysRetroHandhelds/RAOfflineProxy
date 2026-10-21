@@ -12,13 +12,13 @@ import logging
 import subprocess
 import tempfile
 import time
-import urllib.request
 import zipfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from ..config import APP_VERSION, CONFIG_DIR, load_config
-from ..network import configured_ssl_context
+from .. import release_assets
+from ..release_assets import checksum_required, find_asset, find_checksum_asset
 from ..update import (
     GITHUB_RELEASES_URL,
     fetch_github_json,
@@ -54,42 +54,11 @@ class WindowsUpdate:
 
 
 def find_windows_asset(assets: list[dict]) -> str | None:
-    for asset in assets:
-        name = str(asset.get("name") or "").lower()
-        if "windows" in name and name.endswith(".zip"):
-            return str(asset.get("browser_download_url") or "") or None
-    return None
-
-
-def find_checksum_asset(assets: list[dict], zip_url: str) -> str | None:
-    wanted = zip_url.rsplit("/", 1)[-1].lower() + ".sha256"
-    for asset in assets:
-        if str(asset.get("name") or "").lower() == wanted:
-            return str(asset.get("browser_download_url") or "") or None
-    return None
+    return find_asset(assets, "windows", ".zip")
 
 
 def allowed_download(url: str, releases_url: str) -> bool:
-    """Only this project's GitHub release downloads are installed. A test
-    releases list (test channel or update_releases_url) may also point at its
-    own repository's releases, or at its own host (a local test server)."""
-    from urllib.parse import urlsplit
-
-    def repo_of(api_url: str) -> str | None:
-        parts = urlsplit(api_url)
-        if parts.netloc == "api.github.com" and parts.path.startswith("/repos/"):
-            return "/".join(parts.path.split("/")[2:4]).lower()
-        return None
-
-    target = urlsplit(url)
-    source = urlsplit(releases_url)
-    # The releases and the nightly builds (published to a repository of their own).
-    repos = {repo_of(GITHUB_RELEASES_URL), repo_of(WINDOWS_NIGHTLY_RELEASE_URL), repo_of(releases_url)} - {None}
-    if target.scheme == "https" and target.netloc == "github.com":
-        repo = "/".join(target.path.split("/")[1:3]).lower()
-        return repo in repos and target.path.split("/")[3:5] == ["releases", "download"]
-    official = urlsplit(GITHUB_RELEASES_URL).netloc
-    return source.netloc not in ("", official, "api.github.com") and target.netloc == source.netloc
+    return release_assets.allowed_download(url, releases_url, (WINDOWS_NIGHTLY_RELEASE_URL,))
 
 
 def check(force: bool = False) -> WindowsUpdate:
@@ -234,23 +203,14 @@ def releases_url() -> str:
     return test_channel().get("update_releases_url") or load_config().get(RELEASES_URL_OVERRIDE_KEY) or GITHUB_RELEASES_URL
 
 
-def checksum_required(releases_url: str) -> bool:
-    """Official releases must publish a .sha256 for the zip. A test releases
-    list (test channel or update_releases_url) may leave it out."""
-    return releases_url == GITHUB_RELEASES_URL
-
-
 def _download(url: str) -> bytes:
-    with urllib.request.urlopen(url, timeout=120, context=configured_ssl_context()) as response:
-        return response.read()
+    return release_assets.download(url)
 
 
 def download_and_launch_installer(asset_url: str, open_menu: bool = True, checksum_url: str | None = None) -> None:
     """Downloads and unzips the release, then starts a script that stops this
     folder's proxy, tray and menu, swaps in the new program files and starts it
     again. The caller should exit right after."""
-    import hashlib
-
     from .paths import portable_root
 
     root = portable_root()
@@ -263,11 +223,8 @@ def download_and_launch_installer(asset_url: str, open_menu: bool = True, checks
     if checksum_url is None and checksum_required(source):
         raise RuntimeError("this release has no checksum file (.sha256), so it can't be checked and isn't installed")
     data = _download(asset_url)
-    if checksum_url:
-        fields = _download(checksum_url).decode("ascii", errors="replace").split()
-        expected = fields[0].lower() if fields else ""
-        if hashlib.sha256(data).hexdigest() != expected:
-            raise RuntimeError("the downloaded update doesn't match its published checksum")
+    if checksum_url and not release_assets.matches_checksum(data, _download(checksum_url)):
+        raise RuntimeError("the downloaded update doesn't match its published checksum")
     folder = Path(tempfile.mkdtemp(prefix="RAOfflineProxy-update-"))
     archive = folder / "update.zip"
     archive.write_bytes(data)

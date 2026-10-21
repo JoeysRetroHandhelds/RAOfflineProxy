@@ -22,6 +22,8 @@ class FlatpakPathTests(unittest.TestCase):
         for patcher in (
             mock.patch.object(Path, "home", return_value=self.home),
             mock.patch.dict(os.environ, environ, clear=True),
+            # Desktop Linux, even when the tests run on Windows.
+            mock.patch.object(config, "running_on_windows", return_value=False),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)

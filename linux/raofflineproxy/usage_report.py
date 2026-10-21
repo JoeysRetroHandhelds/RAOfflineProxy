@@ -15,7 +15,7 @@ except ImportError:  # pragma: no cover - non-POSIX dev machines
     fcntl = None
 
 from . import cache_keys, cache_queue, log_uploader, usage_stats
-from .config import CONFIG_DIR, ensure_config_dir, load_config, running_on_windows
+from .config import CONFIG_DIR, ensure_config_dir, load_config, running_on_desktop, running_on_windows
 from .network import configured_ssl_context
 from .storage import PENDING_AWARD_STATUS_PENDING, Storage
 
@@ -186,6 +186,11 @@ def _report(storage: Storage, now_ms: int) -> bool:
 
         if test_channel():
             return False  # test builds stay out of the real usage numbers
+    if running_on_desktop():
+        from .desktop.paths import test_channel as desktop_test_channel
+
+        if desktop_test_channel():
+            return False
     with _report_lock() as acquired:
         if not acquired or not is_report_due(usage_stats.last_reported_at(), now_ms):
             return False

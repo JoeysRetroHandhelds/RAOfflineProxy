@@ -36,3 +36,5 @@ linux/raofflineproxy/*.dll
 linux/windows/vendor/
 linux/windows/testing.local.json
 linux/windows/*.local.sh
+linux/desktop/testing.local.json
+linux/desktop/*.local.sh
