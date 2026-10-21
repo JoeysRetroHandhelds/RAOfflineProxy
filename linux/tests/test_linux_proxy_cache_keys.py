@@ -180,6 +180,24 @@ class LinuxProxyCacheKeyTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_offline_achievementsets_cache_miss_tells_the_emulator_why(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = storage.Storage(database_path=Path(temp_dir) / "test.sqlite3")
+            runtime = object.__new__(proxy_service.ProxyRuntimeServer)
+            runtime.storage = store
+            try:
+                response = runtime.handle_offline_request(
+                    "/dorequest.php?r=achievementsets&u=misantronic&t=token&m=0123456789abcdef",
+                    "",
+                    "achievementsets",
+                )
+
+                self.assertTrue(response.startswith(b"HTTP/1.1 200"))
+                self.assertIn(b'"Success":false', response)
+                self.assertIn(b"Game not cached. Launch this game while online first.", response)
+            finally:
+                store.close()
+
     def test_offline_startsession_prefers_cached_live_response(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             store = storage.Storage(database_path=Path(temp_dir) / "test.sqlite3")

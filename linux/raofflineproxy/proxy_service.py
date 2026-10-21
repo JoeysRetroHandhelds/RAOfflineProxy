@@ -186,12 +186,21 @@ def error_json(code: int, message: str) -> bytes:
     )
 
 
+GAME_NOT_CACHED = "Game not cached. Launch this game while online first."
+
+
+def achievementsets_cache_miss() -> bytes:
+    # A bare 503 leaves the emulator to guess (Dolphin says RetroAchievements no
+    # longer supports its version); an error it can show says what to do.
+    return ok_json(json.dumps({"Success": False, "Error": GAME_NOT_CACHED}, separators=(",", ":")))
+
+
 def game_id_cache_miss() -> bytes:
     return ok_json(
         json.dumps(
             {
                 "Success": False,
-                "Error": "Game not cached. Launch this game while online first.",
+                "Error": GAME_NOT_CACHED,
                 "GameID": 0,
             },
             separators=(",", ":"),
@@ -665,6 +674,7 @@ class ProxyRuntimeServer(ThreadingTCPServer):
                 if cached is not None:
                     rewritten_body, _ = rewrite_image_urls(action, cached["responseBody"], proxy_base_url)
                     return ok_json(filter_warning_achievements_for_action(action, rewritten_body))
+            return achievementsets_cache_miss()
 
         return error_json(503, "no cached response")
 
