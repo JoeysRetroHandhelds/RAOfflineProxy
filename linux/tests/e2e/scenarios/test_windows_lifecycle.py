@@ -586,11 +586,42 @@ class TestAutostart:
         time.sleep(5)
         assert not installed.proxy_running()
 
-    def test_disabling_leaves_nothing_behind(self, installed, run_key_restored):
+    def _sign_in_check_installed_and_off(self, installed) -> None:
+        import winreg
+
         installed.cli("enable-autostart", check=True)
         installed.cli("disable-autostart", check=True)
         assert installed.cli("autostart-status").stdout.strip() != "enabled"
-        assert not (installed.local_appdata / "RAOfflineProxy-autostart").exists()
+        # Off, the sign-in check stays: it puts the emulators back after a crash.
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
+            assert "start.ps1" in winreg.QueryValueEx(key, "RAOfflineProxy")[0]
+
+    def test_turned_off_sign_in_leaves_the_proxy_stopped(self, installed, run_key_restored):
+        self._sign_in_check_installed_and_off(installed)
+        self._run_launcher(installed)
+        time.sleep(5)
+        assert not installed.proxy_running()
+
+    def test_sign_in_starts_the_proxy_again_after_a_crash(self, installed, run_key_restored):
+        """Off, but the proxy was running when Windows went down: as on Android,
+        it's started again, rather than leaving the emulators pointed at nothing."""
+        self._sign_in_check_installed_and_off(installed)
+        installed.cli("start-proxy", check=True)
+        pid = json.loads((installed.data_dir / "service_status.json").read_text())["pid"]
+        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, check=True)
+        assert installed.wait_for(lambda: not installed.proxy_running(), timeout=30)
+
+        self._run_launcher(installed)
+        assert installed.wait_for(installed.proxy_running, timeout=90), "not started again after the crash"
+
+    def test_sign_in_after_a_deliberate_stop_restores_instead(self, installed, run_key_restored):
+        self._sign_in_check_installed_and_off(installed)
+        installed.cli("start-proxy", check=True)
+        installed.cli("stop-proxy", check=True)
+
+        self._run_launcher(installed)
+        time.sleep(5)
+        assert not installed.proxy_running()
 
 
 class TestUpdate:
