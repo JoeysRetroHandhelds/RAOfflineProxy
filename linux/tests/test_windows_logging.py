@@ -51,3 +51,28 @@ def test_the_plain_handler_could_not(tmp_path):
     finally:
         other.close()
         service.close()
+
+
+def test_the_log_rolls_over_while_the_service_writes_its_output_to_it(tmp_path):
+    """The service is started with its stdout/stderr on service.log and keeps
+    that handle for its whole life; it must not block the rename either."""
+    import subprocess
+
+    from linux.raofflineproxy.windows.process import open_log_for_append
+
+    path = tmp_path / "service.log"
+    with open_log_for_append(str(path), "utf-8", None) as handle:
+        child = subprocess.Popen(
+            [sys.executable, "-c", "import time; print('started', flush=True); time.sleep(30)"],
+            stdout=handle, stderr=handle,
+        )
+    try:
+        for _ in range(50):
+            if path.exists() and path.stat().st_size:
+                break
+            __import__("time").sleep(0.1)
+        path.rename(tmp_path / "service.log.1")  # what the rollover does
+        assert (tmp_path / "service.log.1").read_text().startswith("started")
+    finally:
+        child.kill()
+        child.wait()
