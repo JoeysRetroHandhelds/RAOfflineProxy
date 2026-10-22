@@ -68,8 +68,12 @@ def release(tag: str, *names: str) -> dict:
 
 
 class UpdateCheckTests(unittest.TestCase):
-    def check(self, current: str, releases: list) -> update.DesktopUpdate | None:
+    def check(self, current: str, releases: list, has_python: bool = True) -> update.DesktopUpdate | None:
+        root = Path(tempfile.mkdtemp())
+        if has_python:
+            (root / "python").mkdir()
         with mock.patch.object(update, "APP_VERSION", current), \
+                mock.patch.object(update, "bundle_root", return_value=root), \
                 mock.patch.object(update, "fetch_github_json", return_value=releases), \
                 mock.patch.object(update, "releases_url", return_value="https://api.github.com/repos/o/r/releases"):
             return update.check()
@@ -87,6 +91,11 @@ class UpdateCheckTests(unittest.TestCase):
         self.assertIsNone(self.check("2.2.0-alpha1-nightly.14", [
             release("v2.2.0-alpha1-nightly.14", "RAOfflineProxy-Desktop-v2.2.0-alpha1-nightly.14.tar.gz"),
         ]))
+
+    def test_a_bundle_missing_its_python_is_offered_the_same_version(self) -> None:
+        same = [release("v2.2.0-alpha1-nightly.21", "RAOfflineProxy-Desktop-v2.2.0-alpha1-nightly.21.tar.gz")]
+        self.assertIsNone(self.check("2.2.0-alpha1-nightly.21", same))
+        self.assertEqual(self.check("2.2.0-alpha1-nightly.21", same, has_python=False).version, "2.2.0-alpha1-nightly.21")
 
     def test_offline(self) -> None:
         self.assertIsNone(self.check("2.2.0-alpha1-nightly.13", None))

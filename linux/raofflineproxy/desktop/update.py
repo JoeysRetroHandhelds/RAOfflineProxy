@@ -40,8 +40,11 @@ def find_desktop_asset(assets: list[dict]) -> str | None:
 
 
 def check() -> DesktopUpdate | None:
-    """The newest release newer than this one, or None (also when offline)."""
+    """The newest release newer than this one, or None (also when offline).
+    A bundle without its python/ folder (updated by a build whose updater
+    only swapped app/) is offered this same version again, to complete it."""
     current = parse_version(APP_VERSION)
+    incomplete = not (bundle_root() / "python").is_dir()
     releases = fetch_github_json(releases_url())
     if current is None or not isinstance(releases, list):
         return None
@@ -53,7 +56,9 @@ def check() -> DesktopUpdate | None:
         version = parse_version(name)
         assets = release.get("assets") or []
         asset_url = find_desktop_asset(assets)
-        if version is None or asset_url is None or not version > current:
+        if version is None or asset_url is None:
+            continue
+        if not (version > current or (incomplete and version == current)):
             continue
         # A nightly is only offered to someone already on nightlies, as elsewhere.
         if version.is_nightly and not current.is_nightly:

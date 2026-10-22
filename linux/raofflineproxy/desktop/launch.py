@@ -54,7 +54,12 @@ def offer_update() -> bool:
     available = update.check()
     if available is None:
         return False
-    if not dialogs.ask(f"RAOfflineProxy {available.version} is available (you have {APP_VERSION}).\n\nUpdate now?"):
+    question = (
+        f"RAOfflineProxy {available.version} needs to finish updating (it's missing its bundled Python).\n\nDownload it now?"
+        if available.version == APP_VERSION
+        else f"RAOfflineProxy {available.version} is available (you have {APP_VERSION}).\n\nUpdate now?"
+    )
+    if not dialogs.ask(question):
         return False
     try:
         archive = update.download(available)
