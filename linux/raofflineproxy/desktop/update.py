@@ -21,6 +21,7 @@ from .paths import TEST_CHANNEL_FILE, bundle_root, test_channel
 # For testing the update flow only, as on Windows.
 RELEASES_URL_OVERRIDE_KEY = "update_releases_url"
 BUNDLE_DIR = "RAOfflineProxy"
+PROGRAM_FOLDERS = ("app", "python")
 
 
 @dataclass
@@ -77,7 +78,7 @@ def download(update: DesktopUpdate) -> bytes:
 
 def install(archive: bytes, root: Path | None = None) -> None:
     """Swaps in the new bundle. data/ is never touched; on any failure the old
-    app/ is put back. testing.json goes when the new build has none, so a test
+    program folders are put back. testing.json goes when the new build has none, so a test
     install that updates to a release build leaves the test channel."""
     root = root or bundle_root()
     staging = root / ".update"
@@ -89,19 +90,30 @@ def install(archive: bytes, root: Path | None = None) -> None:
         new = staging / BUNDLE_DIR
         if not (new / "app").is_dir():
             raise RuntimeError("the downloaded update has no app folder")
-        old_app = root / "app.old"
-        shutil.rmtree(old_app, ignore_errors=True)
-        (root / "app").rename(old_app)
+        # app/, and python/ (the bundled runtime, which older builds didn't have).
+        folders = [name for name in PROGRAM_FOLDERS if (new / name).is_dir()]
+        swapped = []
         try:
-            (new / "app").rename(root / "app")
+            for name in folders:
+                old = root / f"{name}.old"
+                shutil.rmtree(old, ignore_errors=True)
+                if (root / name).exists():
+                    (root / name).rename(old)
+                (new / name).rename(root / name)
+                swapped.append(name)
         except OSError:
-            old_app.rename(root / "app")
+            for name in reversed(folders):
+                if name in swapped:
+                    shutil.rmtree(root / name, ignore_errors=True)
+                if (root / f"{name}.old").exists():
+                    (root / f"{name}.old").rename(root / name)
             raise
         for item in new.iterdir():
             if item.is_file():
                 shutil.copy2(item, root / item.name)
         if not (new / TEST_CHANNEL_FILE).exists():
             (root / TEST_CHANNEL_FILE).unlink(missing_ok=True)
-        shutil.rmtree(old_app, ignore_errors=True)
+        for name in folders:
+            shutil.rmtree(root / f"{name}.old", ignore_errors=True)
     finally:
         shutil.rmtree(staging, ignore_errors=True)

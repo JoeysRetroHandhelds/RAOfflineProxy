@@ -4,8 +4,11 @@ RAOfflineProxy for desktop Linux (experimental)
 For SteamOS, Anatase and other Linux distros, with RetroArch, Dolphin or
 PPSSPP installed as Flatpaks (Discover, EmuDeck) or regular packages.
 
-Needs Python 3 (most distros include it).
+Everything it needs is in this folder, Python included.
 
+Open Menu.sh              Opens the menu, full screen: log in, cached games,
+                          Smart Cache, pending awards. Controller, keyboard
+                          or mouse; B or Esc goes back.
 Start RAOfflineProxy.sh   Checks for an update, starts the proxy and points
                           your emulators at it. Close the emulators first.
 Stop RAOfflineProxy.sh    Stops the proxy and restores the emulator configs.
@@ -23,3 +26,7 @@ editor instead: right-click it, Properties, Permissions, tick "Is executable".
 
 Settings, cached games and pending awards are kept in the data folder here,
 and updates keep it.
+
+In Dolphin, "RetroAchievements no longer supports this version of Dolphin"
+while offline means the game isn't cached yet: launch it once while online.
+Dolphin shows that text for any refused request, whatever the reason.

@@ -7,7 +7,6 @@ from __future__ import annotations
   python3 -m raofflineproxy.desktop.launch send-logs  Send Logs (to the test share in test builds)
   python3 -m raofflineproxy.desktop.launch autostart  turn "Start automatically" on or off
   python3 -m raofflineproxy.desktop.launch sign-in    the sign-in service (no dialogs)
-  python3 -m raofflineproxy.desktop.launch sign-out   the sign-in service stopping (no dialogs)
 """
 
 import os
@@ -77,8 +76,6 @@ def start() -> int:
         autostart.set_start_automatically(dialogs.ask(ASK_AUTOSTART))
     service_installed = autostart.install()
     ok, output = run_main("start-proxy")
-    if ok:
-        autostart.mark_wanted(True)
     message = ("Proxy started." if ok else "Starting the proxy failed.") + f"\n\n{output}"
     if not service_installed:
         message += "\n\nThe sign-in service couldn't be set up (no systemd user session)."
@@ -90,8 +87,6 @@ def stop() -> int:
     if not emulators_closed("stop the proxy"):
         return 1
     ok, output = run_main("stop-proxy")
-    if ok:
-        autostart.mark_wanted(False)
     dialogs.show(("Proxy stopped." if ok else "Stopping the proxy failed.") + f"\n\n{output}")
     return 0 if ok else 1
 
@@ -117,13 +112,6 @@ def sign_in() -> int:
     return 0 if ok else 1
 
 
-def sign_out() -> int:
-    # Leaves the "wanted" mark alone, so the next sign-in starts it again.
-    ok, output = run_main("stop-proxy")
-    print(output)
-    return 0 if ok else 1
-
-
 def send_logs() -> int:
     try:
         dialogs.show(logs.send_logs())
@@ -140,7 +128,6 @@ def main(argv: list[str]) -> int:
         "send-logs": send_logs,
         "autostart": toggle_autostart,
         "sign-in": sign_in,
-        "sign-out": sign_out,
     }
     if len(argv) != 2 or argv[1] not in commands:
         print(__doc__)

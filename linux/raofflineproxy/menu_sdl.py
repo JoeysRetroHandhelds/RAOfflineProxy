@@ -38,6 +38,7 @@ from .config import (
     running_on_rocknix,
     running_on_spruce,
     running_on_darkos,
+    running_on_desktop,
     running_on_windows,
     save_config,
 )
@@ -137,9 +138,10 @@ from .menu_input import (
     read_keys,
 )
 
-if running_on_windows():
-    # No /dev/input on Windows: gamepads come through SDL instead, as the same codes.
-    from .windows.input import close_input_devices, open_input_devices, read_keys
+if running_on_windows() or running_on_desktop():
+    # No /dev/input on Windows (and no access to it for an ordinary desktop Linux
+    # user): gamepads come through SDL instead, as the same codes.
+    from .sdl_input import close_input_devices, open_input_devices, read_keys
 
 SDL_LOG_PATH = CONFIG_DIR / "menu-sdl.log"
 STALE_HOOK_PATH = Path("/userdata/system/scripts/RAOfflineProxy_game_hook.sh")
@@ -359,6 +361,12 @@ def run_menu_sdl(command_runner: str) -> None:
         if show_existing_menu():
             log_menu_sdl("menu already open; brought it to the front")
             return
+    elif running_on_desktop():
+        from .desktop.window import show_existing_menu
+
+        if show_existing_menu():
+            log_menu_sdl("menu already open")
+            return
     try:
         import pygame
 
@@ -367,6 +375,10 @@ def run_menu_sdl(command_runner: str) -> None:
 
         if running_on_windows():
             from .windows.input import open_menu_window
+
+            surface = open_menu_window(pygame, load_config())
+        elif running_on_desktop():
+            from .desktop.window import open_menu_window
 
             surface = open_menu_window(pygame, load_config())
         elif running_on_mini_sdl_stack():
@@ -1565,6 +1577,8 @@ class MenuSdlSession:
         platform name that `update.validate_platform()` rejects, because every caller
         would then log a spurious "update check failed" line on each refresh.
         """
+        if running_on_desktop():
+            return None  # updated by the bundle's Start script (desktop/update.py)
         if running_on_muos():
             return "muos"
         if running_on_spruce():
@@ -1586,7 +1600,7 @@ class MenuSdlSession:
         )
 
     def needs_controller_calibration(self) -> bool:
-        if running_on_windows():
+        if running_on_windows() or running_on_desktop():
             # SDL's GameController mapping already puts A/B at BTN_SOUTH/BTN_EAST,
             # which is_confirm_key/is_cancel_key default to.
             return False

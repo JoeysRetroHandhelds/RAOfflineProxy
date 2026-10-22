@@ -37,14 +37,18 @@ class SignInTests(unittest.TestCase):
         autostart.set_start_automatically(False)
         self.assertEqual(self.sign_in_command(), "stop-proxy")
 
-    def test_stop_clears_the_mark_and_sign_out_keeps_it(self) -> None:
-        autostart.mark_wanted(True)
-        with mock.patch.object(launch, "run_main", return_value=(True, "")):
-            launch.sign_out()
+    def test_the_service_sets_the_mark_when_started_and_clears_it_when_stopped(self) -> None:
+        """Wherever it's started or stopped from (a script, the menu): service.py."""
+        from linux.raofflineproxy import service
+
+        with mock.patch.object(service, "running_on_desktop", return_value=True),                 mock.patch.object(service, "running_on_windows", return_value=False):
+            with mock.patch.object(service, "find_listening_service_pid", return_value=None, create=True),                     mock.patch.object(service, "discover_service_pids", return_value=[]),                     mock.patch.object(service, "load_pid", return_value=None),                     mock.patch.object(service, "ensure_proxy_port_available", return_value=None, create=True),                     mock.patch.object(service.subprocess, "Popen") as popen,                     mock.patch.object(service, "save_running_service_state"),                     mock.patch.object(service, "LOG_FILE", self.data / "service.log"):
+                popen.return_value.pid = 4321
+                service.start_service_process({})
             self.assertTrue(autostart.WANTED_FILE.exists())
-            with mock.patch.object(launch, "emulators_closed", return_value=True), \
-                    mock.patch.object(launch.dialogs, "show"):
-                launch.stop()
+
+            with mock.patch.object(service, "discover_service_pids", return_value=[4321]),                     mock.patch.object(service, "load_pid", return_value=4321),                     mock.patch.object(service, "process_is_running", return_value=True),                     mock.patch.object(service, "process_matches_service", return_value=True),                     mock.patch.object(service, "process_has_exited", return_value=True),                     mock.patch.object(service.os, "kill", create=True),                     mock.patch.object(service, "clear_pid"),                     mock.patch.object(service, "clear_service_status"):
+                service.stop_service_process()
         self.assertFalse(autostart.WANTED_FILE.exists())
 
 
@@ -63,6 +67,8 @@ class UnitTests(unittest.TestCase):
                 autostart.install()
         self.assertIn(f"WorkingDirectory={Path('/bundle/app')}", unit)
         self.assertIn("launch sign-in", unit)
+        # No sign-out step: a logout is handled at the next sign-in, like a crash.
+        self.assertNotIn("ExecStop", unit)
         self.assertIn("WantedBy=default.target", unit)
         self.assertEqual(
             calls,

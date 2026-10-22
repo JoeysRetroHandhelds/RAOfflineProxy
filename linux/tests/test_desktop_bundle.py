@@ -137,6 +137,15 @@ class InstallTests(unittest.TestCase):
         self.assertFalse((self.root / "app.old").exists())
         self.assertFalse((self.root / ".update").exists())
 
+    def test_an_older_bundle_gets_the_bundled_python(self) -> None:
+        self.assertFalse((self.root / "python").exists())  # builds before the runtime was bundled
+        update.install(bundle_archive({
+            "app/raofflineproxy/config.py": "new",
+            "python/bin/python3": "runtime",
+        }), self.root)
+        self.assertEqual((self.root / "python" / "bin" / "python3").read_text(), "runtime")
+        self.assertFalse((self.root / "python.old").exists())
+
     def test_a_test_build_keeps_the_test_channel(self) -> None:
         update.install(bundle_archive({"app/raofflineproxy/config.py": "new", "testing.json": '{"new": 1}'}), self.root)
         self.assertEqual((self.root / "testing.json").read_text(), '{"new": 1}')

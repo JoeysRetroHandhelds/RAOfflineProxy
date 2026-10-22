@@ -14,6 +14,7 @@ Start rewrites it, which keeps it right after the folder moves."""
 
 import os
 import shutil
+import sys
 import subprocess
 from pathlib import Path
 
@@ -22,8 +23,9 @@ from ..platform import AUTOSTART_CONFIG_KEY
 from .paths import app_dir
 
 UNIT_NAME = "raofflineproxy.service"
-# Set while the proxy should be running (Start), cleared by Stop: the sign-in
-# service starts it again after a crash even with "Start automatically" off.
+# Set when the proxy service starts and cleared when it's stopped (service.py),
+# from any script or the menu: the sign-in service starts it again after a crash,
+# a power loss or a logout, even with "Start automatically" off.
 WANTED_FILE = CONFIG_DIR / "desktop_proxy_wanted"
 
 UNIT = """[Unit]
@@ -33,8 +35,7 @@ Description=RAOfflineProxy: start it at sign-in, or restore the emulator configs
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory={app}
-ExecStart=/usr/bin/env python3 -m raofflineproxy.desktop.launch sign-in
-ExecStop=/usr/bin/env python3 -m raofflineproxy.desktop.launch sign-out
+ExecStart={python} -m raofflineproxy.desktop.launch sign-in
 
 [Install]
 WantedBy=default.target
@@ -55,7 +56,8 @@ def _systemctl(*args: str) -> bool:
 def install() -> bool:
     """Writes and enables the unit. False when there's no systemd user session."""
     path = unit_path()
-    content = UNIT.format(app=app_dir())
+    # The bundle's own Python (this one), not whatever the distro ships.
+    content = UNIT.format(app=app_dir(), python=sys.executable)
     if not path.exists() or path.read_text(encoding="utf-8") != content:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")

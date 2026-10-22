@@ -38,3 +38,4 @@ linux/windows/testing.local.json
 linux/windows/*.local.sh
 linux/desktop/testing.local.json
 linux/desktop/*.local.sh
+linux/desktop/vendor/

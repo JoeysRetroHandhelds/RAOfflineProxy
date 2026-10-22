@@ -19,6 +19,7 @@ from .config import (
     proxy_port,
     running_on_darkos,
     save_config,
+    running_on_desktop,
     running_on_windows,
 )
 from .darkos_service import (
@@ -333,6 +334,10 @@ def start_service_process(config_data: dict) -> dict:
         from .windows import process as windows_process
 
         windows_process.remember_service(process.pid)
+    elif running_on_desktop():
+        from .desktop.autostart import mark_wanted
+
+        mark_wanted(True)
     save_running_service_state(process.pid, config_data)
     return {"started": True, "already_running": False, "pid": process.pid}
 
@@ -362,6 +367,10 @@ def stop_service_process(timeout_seconds: int = 10) -> dict:
 
         windows_process.request_stop(STOP_REQUEST_FILE)
     else:
+        if running_on_desktop():
+            from .desktop.autostart import mark_wanted
+
+            mark_wanted(False)  # a deliberate stop: not started again at sign-in
         for pid in pids:
             try:
                 os.kill(pid, signal.SIGTERM)
