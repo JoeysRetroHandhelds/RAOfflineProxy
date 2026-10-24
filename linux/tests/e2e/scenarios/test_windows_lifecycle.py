@@ -636,6 +636,47 @@ class TestAutostart:
         time.sleep(5)
         assert not installed.proxy_running()
 
+    def test_stopping_after_a_crash_still_counts_as_stopping(self, installed, run_key_restored):
+        """Crashed (so marked as running), then Stop finds nothing to stop: it
+        still says the user wants it off, so sign-in mustn't start it."""
+        self._sign_in_check_installed_and_off(installed)
+        installed.cli("start-proxy", check=True)
+        pid = json.loads((installed.data_dir / "service_status.json").read_text())["pid"]
+        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, check=True)
+        assert installed.wait_for(lambda: not installed.proxy_running(), timeout=30)
+        assert "already stopped" in installed.cli("stop-proxy", check=True).stdout.lower()
+
+        self._run_launcher(installed)
+        time.sleep(5)
+        assert not installed.proxy_running()
+
+    def test_the_sign_in_check_can_be_removed_and_stays_removed(self, installed, run_key_restored):
+        import winreg
+
+        installed.cli("enable-autostart", check=True)
+        subprocess.run(
+            [installed.python(), "-m", "raofflineproxy.windows.launch", "--uninstall"],
+            env=installed.env, cwd=installed.folder, capture_output=True, text=True, timeout=60, check=True,
+        )
+
+        def run_entry_exists() -> bool:
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
+                    winreg.QueryValueEx(key, "RAOfflineProxy")
+                return True
+            except OSError:
+                return False
+
+        assert not run_entry_exists()
+        assert not (installed.local_appdata / "RAOfflineProxy-autostart").exists()
+        assert installed.cli("autostart-status").stdout.strip() != "enabled"
+        # A later start doesn't put it back...
+        installed.app_python("from raofflineproxy.windows import autostart; autostart.refresh_location()")
+        assert not run_entry_exists()
+        # ...until Start with Windows is turned on again.
+        installed.cli("enable-autostart", check=True)
+        assert run_entry_exists()
+
 
 class TestUpdate:
     def test_a_locked_file_leaves_the_old_version_working(self, installed, tmp_path):

@@ -356,6 +356,10 @@ def stop_service_process(timeout_seconds: int = 10) -> dict:
     ]
 
     if not pids:
+        if running_on_windows():
+            from .windows import process as windows_process
+
+            windows_process.forget_wanted()
         clear_pid()
         clear_service_status()
         return {"stopped": False, "already_stopped": True}

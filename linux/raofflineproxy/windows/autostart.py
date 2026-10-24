@@ -182,8 +182,11 @@ TASK_CACHE_SECONDS = 5
 def task_exists() -> bool:
     import time
 
+    # RAOFFLINEPROXY_AUTOSTART_MODE=run: the Run entry only, no logon task, so no
+    # admin prompt. The e2e tests set it, so they never touch (or see) a task
+    # that's on the machine they run on.
     if os.environ.get(MODE_ENV) == "run":
-        return False  # the Run entry only, whatever tasks this machine has
+        return False
     global _task_cache
     if _task_cache is not None and time.monotonic() - _task_cache[0] < TASK_CACHE_SECONDS:
         return _task_cache[1]
@@ -216,6 +219,8 @@ def _run_entry_exists() -> bool:
 # The setting in config.json. The sign-in check is installed either way; this
 # decides whether it starts the proxy or only puts the emulator configs back.
 SETTING_KEY = "start_with_windows"
+# Set by remove_sign_in_check(), so starts don't add the check back.
+CHECK_REMOVED_KEY = "sign_in_check_removed"
 
 
 def is_enabled(config_data: dict | None = None) -> bool:
@@ -254,7 +259,10 @@ def enable() -> str:
     root = portable_root()
     if root is None:
         raise OSError("Start with Windows needs the portable RAOfflineProxy folder")
-    _set_setting(True)
+    config_data = load_config()
+    config_data[SETTING_KEY] = True
+    config_data.pop(CHECK_REMOVED_KEY, None)
+    save_config(config_data)
     _write_location(root)
     (launcher_dir() / "start.ps1").write_text(LAUNCHER_SCRIPT.lstrip(), encoding="utf-8")
 
@@ -276,12 +284,37 @@ def enable() -> str:
     return "run"
 
 
-def disable() -> bool:
+def disable() -> None:
     """Turns the setting off. The sign-in check stays (the logon task too, with
-    no admin prompt to remove it): from now on it only puts back emulator
-    configs a crash left pointing at a proxy that isn't running."""
+    no admin prompt to remove it): from now on it starts the proxy only if it
+    was running when Windows went down, and otherwise puts the emulator configs
+    back. remove_sign_in_check() takes it away."""
     _set_setting(False)
+
+
+def remove_sign_in_check() -> bool:
+    """Removes everything RAOfflineProxy adds to Windows: the Run entry, the
+    logon task (one admin prompt, when there is one) and the launcher in
+    %LOCALAPPDATA%. Start with Windows goes off, and starts don't put the check
+    back until it's turned on again. False when the admin prompt was declined;
+    the task is then left, and so is everything else."""
+    import shutil
+
+    _forget_task()
+    if task_exists() and not _run_elevated(REMOVE_SCRIPT):
+        return False
+    _forget_task()
+    _set_run_entry(False)
+    shutil.rmtree(launcher_dir(), ignore_errors=True)
+    config_data = load_config()
+    config_data[SETTING_KEY] = False
+    config_data[CHECK_REMOVED_KEY] = True
+    save_config(config_data)
     return True
+
+
+def sign_in_check_installed() -> bool:
+    return _run_entry_exists() or task_exists()
 
 
 def ensure_sign_in_check(root: Path) -> None:
@@ -301,6 +334,9 @@ def refresh_location() -> None:
     root = portable_root()
     if root is None:
         return
-    if SETTING_KEY not in load_config():
+    config_data = load_config()
+    if config_data.get(CHECK_REMOVED_KEY):
+        return  # removed on purpose: back only when Start with Windows is turned on
+    if SETTING_KEY not in config_data:
         _set_setting(is_enabled())  # before the check is added, which would read as "on"
     ensure_sign_in_check(root)

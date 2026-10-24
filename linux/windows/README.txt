@@ -8,16 +8,22 @@ Start:   double-click "Start RAOfflineProxy.cmd". The first start finds your
          the menu works with a controller or keyboard.
 Stop:    "Stop RAOfflineProxy.cmd", or right-click the tray icon.
 
-Nothing is installed. Settings, cached games and pending awards are kept in
-the data folder here, so you can move this folder, put it on a USB stick or
-copy it to another PC (it finds that PC's emulators on the first start).
+Settings, cached games and pending awards are kept in the data folder here,
+so you can move this folder, put it on a USB stick or copy it to another PC
+(it finds that PC's emulators on the first start).
+
+The only thing added to Windows is a sign-in check (a startup entry, or a
+sign-in task once Start with Windows is on). After a crash or power cut it
+starts the proxy again if it was running, and otherwise puts your emulator
+settings back, so they never point at a proxy that isn't running.
 
 Start with Windows (in Settings) still finds the folder if a USB stick comes
 back with a different drive letter.
 
 Updates install from the menu when a new version is out.
 
-To remove: turn off Start with Windows, run Stop, then delete this folder.
+To remove: run Stop, choose Settings > "Remove from Windows sign-in", then
+delete this folder.
 
 Windows may warn the first time you run a .cmd from a downloaded zip
 ("Windows protected your PC"): choose More info, then Run anyway.

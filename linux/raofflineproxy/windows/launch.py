@@ -6,6 +6,7 @@ from __future__ import annotations
   python -m raofflineproxy.windows.launch            start: proxy, tray, menu
   python -m raofflineproxy.windows.launch --autostart  start without the menu (after an update)
   python -m raofflineproxy.windows.launch --sign-in   the sign-in check (see sign_in)
+  python -m raofflineproxy.windows.launch --uninstall  remove what it added to Windows (see uninstall)
   python -m raofflineproxy.windows.launch --stop     stop everything from this folder
 
 Nothing is installed: settings and cache live in the folder's data/. The first
@@ -93,7 +94,21 @@ def sign_in() -> None:
         _run_cli("stop-proxy")
 
 
+def uninstall() -> int:
+    """Removes the sign-in check (Run entry, logon task, launcher), for deleting
+    the folder afterwards. Nothing else is installed outside it."""
+    from . import autostart as windows_autostart
+
+    if not windows_autostart.remove_sign_in_check():
+        print("Not removed: the admin prompt to remove the sign-in task was declined.")
+        return 1
+    print("Removed RAOfflineProxy from Windows sign-in.")
+    return 0
+
+
 def main(argv: list[str]) -> int:
+    if "--uninstall" in argv:
+        return uninstall()
     if "--stop" in argv:
         stop()
     elif "--sign-in" in argv:

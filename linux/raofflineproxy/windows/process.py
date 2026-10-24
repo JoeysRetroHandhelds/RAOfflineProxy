@@ -228,9 +228,15 @@ def make_probe_exclusive(sock) -> None:
 # skip the service's cleanup (including reverting the emulator configs). So
 # stopping is a request file the service polls for, with TerminateProcess
 # only as the timeout fallback.
-def request_stop(stop_file: Path) -> None:
-    # A deliberate stop (menu, tray, Stop script, update): not started again at sign-in.
+def forget_wanted() -> None:
+    """A deliberate stop (menu, tray, Stop script, update): not started again
+    at sign-in. Also when nothing was running (it had crashed): stopping says
+    the user wants it off."""
     _wanted_file().unlink(missing_ok=True)
+
+
+def request_stop(stop_file: Path) -> None:
+    forget_wanted()
     stop_file.parent.mkdir(parents=True, exist_ok=True)
     stop_file.touch()
 
