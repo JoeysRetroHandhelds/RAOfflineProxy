@@ -112,10 +112,13 @@ class SettingsMixin:
     def settings_rows(self) -> list[tuple[str, str | None]]:
         """(row name, value shown after it) in display order."""
         config_data = self.config_data
+        from .autostart import check_removed
+
         return [
             (PORT_ROW, str(proxy_port(config_data))),
             (AUTOSTART_ROW, on_off(is_autostart_enabled(config_data))),
-            (REMOVE_CHECK_ROW, None),
+            # Gone once removed; turning Start with Windows on puts it back.
+            *([] if check_removed(config_data) else [(REMOVE_CHECK_ROW, None)]),
             (SMART_CACHE_ROW, on_off(setting_enabled(config_data, SMART_CACHE_ON_START_KEY))),
             (SHOW_LOCKED_ROW, on_off(setting_enabled(config_data, SHOW_LOCKED_KEY))),
             (UPDATE_CHECK_ROW, on_off(setting_enabled(config_data, UPDATE_CHECK_KEY))),
@@ -228,10 +231,14 @@ class SettingsMixin:
         self.flash("Start with Windows is off", 3)
 
     def remove_sign_in_check(self) -> None:
-        """In the background, like the other admin prompt."""
+        """In the background, like the other admin prompt, and never alongside
+        it (one admin prompt at a time)."""
         import threading
 
         from . import autostart as windows_autostart
+
+        if self.autostart_thread is not None and self.autostart_thread.is_alive():
+            return
 
         def worker() -> None:
             if windows_autostart.remove_sign_in_check():
@@ -241,7 +248,8 @@ class SettingsMixin:
             self.config_data = load_config()
 
         self.flash("Removing from Windows sign-in...", 300)
-        threading.Thread(target=worker, daemon=True).start()
+        self.autostart_thread = threading.Thread(target=worker, daemon=True)
+        self.autostart_thread.start()
 
     # Add to Steam ---------------------------------------------------------------
 

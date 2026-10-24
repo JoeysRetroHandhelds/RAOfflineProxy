@@ -223,6 +223,10 @@ SETTING_KEY = "start_with_windows"
 CHECK_REMOVED_KEY = "sign_in_check_removed"
 
 
+def check_removed(config_data: dict) -> bool:
+    return bool(config_data.get(CHECK_REMOVED_KEY))
+
+
 def is_enabled(config_data: dict | None = None) -> bool:
     config_data = load_config() if config_data is None else config_data
     if SETTING_KEY in config_data:
@@ -313,10 +317,6 @@ def remove_sign_in_check() -> bool:
     return True
 
 
-def sign_in_check_installed() -> bool:
-    return _run_entry_exists() or task_exists()
-
-
 def ensure_sign_in_check(root: Path) -> None:
     """Installs the sign-in check when nothing runs at sign-in yet: the Run
     entry, which needs no admin rights (only the logon task, from turning Start
@@ -335,7 +335,7 @@ def refresh_location() -> None:
     if root is None:
         return
     config_data = load_config()
-    if config_data.get(CHECK_REMOVED_KEY):
+    if check_removed(config_data):
         return  # removed on purpose: back only when Start with Windows is turned on
     if SETTING_KEY not in config_data:
         _set_setting(is_enabled())  # before the check is added, which would read as "on"

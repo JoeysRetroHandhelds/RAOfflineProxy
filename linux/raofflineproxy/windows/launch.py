@@ -9,7 +9,8 @@ from __future__ import annotations
   python -m raofflineproxy.windows.launch --uninstall  remove what it added to Windows (see uninstall)
   python -m raofflineproxy.windows.launch --stop     stop everything from this folder
 
-Nothing is installed: settings and cache live in the folder's data/. The first
+Settings and cache live in the folder's data/; the only thing added to
+Windows is the sign-in check, which --uninstall removes. The first
 start finds the emulators; every start refreshes where the folder is, so Start
 with Windows keeps working after the folder (or its USB stick) moves."""
 
