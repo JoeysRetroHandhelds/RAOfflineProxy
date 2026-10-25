@@ -562,6 +562,27 @@ def detect_dolphin_config_dir(config_data: dict) -> str | None:
     return None
 
 
+def detect_pcsx2_ini(config_data: dict) -> str | None:
+    """PCSX2.ini. Found on Windows; elsewhere only where it's configured, so
+    nothing starts patching a PCSX2.ini on the handhelds."""
+    configured = config_data.get("pcsx2_ini")
+    if configured:
+        return str(configured)
+
+    env_override = os.environ.get("RAOFFLINEPROXY_PCSX2_INI")
+    if env_override:
+        return env_override
+
+    if running_on_windows():
+        from .windows import paths
+
+        windows_ini = paths.pcsx2_ini()
+        if windows_ini is not None:
+            return str(windows_ini)
+
+    return None
+
+
 def detect_dolphin_ini(config_data: dict) -> str | None:
     configured = config_data.get("dolphin_ini")
     if configured:
