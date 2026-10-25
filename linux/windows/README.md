@@ -23,15 +23,15 @@ Unzip anywhere (a folder, or a USB stick), then:
 - **Start RAOfflineProxy.cmd** starts the proxy, its tray icon and the menu. The first start finds the emulators. A folder copied from another PC finds this PC's emulators on its first start here, keeping its cache and settings.
 - **Stop RAOfflineProxy.cmd** stops the proxy (putting the emulator configs back), the tray and the menu.
 
-Settings, cached games, pending awards and history are kept in the folder's `data\`. To remove it: turn off Start with Windows, run Stop, then delete the folder.
+Settings, cached games, pending awards and history are kept in the folder's `data\`. To remove it: run Stop, choose Settings > **Remove from Windows sign-in** (or run `python\python.exe -m raofflineproxy.windows.launch --uninstall` from the folder), then delete the folder.
 
-**Start with Windows** (in Settings) adds a per-user sign-in entry (no admin). That entry runs a small launcher kept in `%LOCALAPPDATA%\RAOfflineProxy-autostart`, which finds the folder by the id in its `portable.txt`:
+**The sign-in check.** Every start makes sure a per-user sign-in entry (no admin) is in place; turning **Start with Windows** on (in Settings) replaces it with a logon task (one admin prompt), which also runs in Xbox full screen mode. At sign-in it starts the proxy when Start with Windows is on, or when the proxy was running when Windows went down (a crash, a power cut); otherwise it puts the emulator configs back, so they never point at a proxy that isn't running. The entry runs a small launcher kept in `%LOCALAPPDATA%\RAOfflineProxy-autostart`, which finds the folder by the id in its `portable.txt`:
 
 - it looks first where the folder last was, then at the same path on every other drive letter;
 - a USB stick that comes back as a different drive still starts, and with the stick unplugged it does nothing;
 - every start records the folder's location, so after moving the folder one manual start is enough.
 
-Turning the setting off removes the entry and the launcher.
+Turning Start with Windows off keeps the sign-in check. **Remove from Windows sign-in** removes the entry, the logon task and the launcher, and starts don't add them back until Start with Windows is turned on again.
 
 **Updates** install from the menu (or the tray's notice): the new zip's `app\`, `python\` and scripts replace the old ones in place, and `data\` and `portable.txt` are kept.
 

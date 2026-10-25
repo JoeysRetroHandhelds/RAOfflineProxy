@@ -4,10 +4,13 @@ from __future__ import annotations
 "Start RAOfflineProxy.cmd" and "Stop RAOfflineProxy.cmd".
 
   python -m raofflineproxy.windows.launch            start: proxy, tray, menu
-  python -m raofflineproxy.windows.launch --autostart  start at sign-in: no menu
+  python -m raofflineproxy.windows.launch --autostart  start without the menu (after an update)
+  python -m raofflineproxy.windows.launch --sign-in   the sign-in check (see sign_in)
+  python -m raofflineproxy.windows.launch --uninstall  remove what it added to Windows (see uninstall)
   python -m raofflineproxy.windows.launch --stop     stop everything from this folder
 
-Nothing is installed: settings and cache live in the folder's data/. The first
+Settings and cache live in the folder's data/; the only thing added to
+Windows is the sign-in check, which --uninstall removes. The first
 start finds the emulators; every start refreshes where the folder is, so Start
 with Windows keeps working after the folder (or its USB stick) moves."""
 
@@ -78,9 +81,39 @@ def stop() -> None:
         terminate_process(pid)
 
 
+def sign_in() -> None:
+    """Runs at every sign-in, so a crash or power loss never leaves the
+    emulators pointed at a proxy that isn't running: starts it when Start with
+    Windows is on or it was running when Windows went down, and otherwise
+    quietly puts the emulator configs back."""
+    from . import autostart as windows_autostart
+    from .process import proxy_wanted
+
+    if windows_autostart.is_enabled() or proxy_wanted():
+        start(open_menu=False)
+    else:
+        _run_cli("stop-proxy")
+
+
+def uninstall() -> int:
+    """Removes the sign-in check (Run entry, logon task, launcher), for deleting
+    the folder afterwards. Nothing else is installed outside it."""
+    from . import autostart as windows_autostart
+
+    if not windows_autostart.remove_sign_in_check():
+        print("Not removed: the admin prompt to remove the sign-in task was declined.")
+        return 1
+    print("Removed RAOfflineProxy from Windows sign-in.")
+    return 0
+
+
 def main(argv: list[str]) -> int:
+    if "--uninstall" in argv:
+        return uninstall()
     if "--stop" in argv:
         stop()
+    elif "--sign-in" in argv:
+        sign_in()
     else:
         start(open_menu="--autostart" not in argv)
     return 0

@@ -47,6 +47,7 @@ SETTING_DEFAULTS = {
 
 PORT_ROW = "Proxy port"
 AUTOSTART_ROW = "Start with Windows"
+REMOVE_CHECK_ROW = "Remove from Windows sign-in"
 SMART_CACHE_ROW = "Smart Cache on proxy start"
 SHOW_LOCKED_ROW = "Show locked achievements"
 UPDATE_CHECK_ROW = "Check for updates"
@@ -62,7 +63,8 @@ BACK = "Back"
 # Android app shows under each setting.
 ROW_CAPTIONS = {
     PORT_ROW: "Local port the emulators use to reach the proxy. Stop the proxy to change it.",
-    AUTOSTART_ROW: "Starts the proxy when you sign in to Windows.",
+    AUTOSTART_ROW: "Starts the proxy when you sign in to Windows. Off, sign-in starts it only if it was running when Windows went down, and otherwise puts the emulators back.",
+    REMOVE_CHECK_ROW: "Removes RAOfflineProxy from Windows sign-in (the startup entry and sign-in task), for example before deleting this folder.",
     SMART_CACHE_ROW: "Prefetches achievement data for recently played games whenever the proxy starts.",
     SHOW_LOCKED_ROW: "Includes achievements you haven't unlocked yet in a game's achievement list.",
     UPDATE_CHECK_ROW: "Checks for new versions at startup and about once a day.",
@@ -110,9 +112,13 @@ class SettingsMixin:
     def settings_rows(self) -> list[tuple[str, str | None]]:
         """(row name, value shown after it) in display order."""
         config_data = self.config_data
+        from .autostart import check_removed
+
         return [
             (PORT_ROW, str(proxy_port(config_data))),
             (AUTOSTART_ROW, on_off(is_autostart_enabled(config_data))),
+            # Gone once removed; turning Start with Windows on puts it back.
+            *([] if check_removed(config_data) else [(REMOVE_CHECK_ROW, None)]),
             (SMART_CACHE_ROW, on_off(setting_enabled(config_data, SMART_CACHE_ON_START_KEY))),
             (SHOW_LOCKED_ROW, on_off(setting_enabled(config_data, SHOW_LOCKED_KEY))),
             (UPDATE_CHECK_ROW, on_off(setting_enabled(config_data, UPDATE_CHECK_KEY))),
@@ -150,6 +156,8 @@ class SettingsMixin:
             self.return_to("main")
         elif name == PORT_ROW:
             self.edit_proxy_port()
+        elif name == REMOVE_CHECK_ROW:
+            self.remove_sign_in_check()
         elif name == AUTOSTART_ROW:
             self.config_data = load_config()
             self.change_autostart(not is_autostart_enabled(self.config_data))
@@ -198,8 +206,11 @@ class SettingsMixin:
                     self.turn_off_autostart()
             except Exception as exc:  # e.g. the prompt left unanswered past the timeout
                 self.flash(f"Start with Windows failed: {exc}", ERROR_SECONDS)
+            # The setting lives in config.json, which the Settings rows read from here.
+            self.config_data = load_config()
 
-        self.flash("Waiting for the admin prompt...", 300)
+        if enable:
+            self.flash("Waiting for the admin prompt...", 300)
         self.autostart_thread = threading.Thread(target=worker, daemon=True)
         self.autostart_thread.start()
 
@@ -216,10 +227,29 @@ class SettingsMixin:
     def turn_off_autostart(self) -> None:
         from . import autostart as windows_autostart
 
-        if windows_autostart.disable():
-            self.flash("Start with Windows is off", 3)
-        else:
-            self.flash("Still on: removing it needs the admin prompt", ERROR_SECONDS)
+        windows_autostart.disable()
+        self.flash("Start with Windows is off", 3)
+
+    def remove_sign_in_check(self) -> None:
+        """In the background, like the other admin prompt, and never alongside
+        it (one admin prompt at a time)."""
+        import threading
+
+        from . import autostart as windows_autostart
+
+        if self.autostart_thread is not None and self.autostart_thread.is_alive():
+            return
+
+        def worker() -> None:
+            if windows_autostart.remove_sign_in_check():
+                self.flash("Removed from Windows sign-in", 3)
+            else:
+                self.flash("Not removed: the admin prompt was declined", ERROR_SECONDS)
+            self.config_data = load_config()
+
+        self.flash("Removing from Windows sign-in...", 300)
+        self.autostart_thread = threading.Thread(target=worker, daemon=True)
+        self.autostart_thread.start()
 
     # Add to Steam ---------------------------------------------------------------
 

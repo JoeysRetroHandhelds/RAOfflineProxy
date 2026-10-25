@@ -21,6 +21,7 @@ import subprocess
 import uuid
 from pathlib import Path
 
+from ..config import load_config, save_config
 from .paths import PORTABLE_MARKER, portable_root
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -49,7 +50,7 @@ foreach ($disk in Get-CimInstance Win32_LogicalDisk -Filter 'DriveType = 2 OR Dr
 foreach ($root in $candidates) {
     if (Test-Folder $root) {
         Start-Process -FilePath (Join-Path $root 'python\pythonw.exe') `
-            -ArgumentList '-m', 'raofflineproxy.windows.launch', '--autostart' `
+            -ArgumentList '-m', 'raofflineproxy.windows.launch', '--sign-in' `
             -WorkingDirectory $root
         break
     }
@@ -181,6 +182,11 @@ TASK_CACHE_SECONDS = 5
 def task_exists() -> bool:
     import time
 
+    # RAOFFLINEPROXY_AUTOSTART_MODE=run: the Run entry only, no logon task, so no
+    # admin prompt. The e2e tests set it, so they never touch (or see) a task
+    # that's on the machine they run on.
+    if os.environ.get(MODE_ENV) == "run":
+        return False
     global _task_cache
     if _task_cache is not None and time.monotonic() - _task_cache[0] < TASK_CACHE_SECONDS:
         return _task_cache[1]
@@ -210,8 +216,29 @@ def _run_entry_exists() -> bool:
         return False
 
 
-def is_enabled() -> bool:
+# The setting in config.json. The sign-in check is installed either way; this
+# decides whether it starts the proxy or only puts the emulator configs back.
+SETTING_KEY = "start_with_windows"
+# Set by remove_sign_in_check(), so starts don't add the check back.
+CHECK_REMOVED_KEY = "sign_in_check_removed"
+
+
+def check_removed(config_data: dict) -> bool:
+    return bool(config_data.get(CHECK_REMOVED_KEY))
+
+
+def is_enabled(config_data: dict | None = None) -> bool:
+    config_data = load_config() if config_data is None else config_data
+    if SETTING_KEY in config_data:
+        return bool(config_data[SETTING_KEY])
+    # Installed before the setting existed: a sign-in entry meant it was on.
     return _run_entry_exists() or task_exists()
+
+
+def _set_setting(enabled: bool) -> None:
+    config_data = load_config()
+    config_data[SETTING_KEY] = enabled
+    save_config(config_data)
 
 
 def _set_run_entry(enabled: bool) -> None:
@@ -236,10 +263,16 @@ def enable() -> str:
     root = portable_root()
     if root is None:
         raise OSError("Start with Windows needs the portable RAOfflineProxy folder")
+    config_data = load_config()
+    config_data[SETTING_KEY] = True
+    config_data.pop(CHECK_REMOVED_KEY, None)
+    save_config(config_data)
     _write_location(root)
     (launcher_dir() / "start.ps1").write_text(LAUNCHER_SCRIPT.lstrip(), encoding="utf-8")
 
     _forget_task()
+    if task_exists():
+        return "task"  # kept from before (turning it off keeps it): no admin prompt needed
     if os.environ.get(MODE_ENV) != "run":
         command = _launcher_command()
         # Passed in, not read inside: an elevated prompt answered with another
@@ -255,9 +288,20 @@ def enable() -> str:
     return "run"
 
 
-def disable() -> bool:
-    """False when the logon task couldn't be removed (admin prompt declined);
-    the Run entry and launcher are removed either way only on success."""
+def disable() -> None:
+    """Turns the setting off. The sign-in check stays (the logon task too, with
+    no admin prompt to remove it): from now on it starts the proxy only if it
+    was running when Windows went down, and otherwise puts the emulator configs
+    back. remove_sign_in_check() takes it away."""
+    _set_setting(False)
+
+
+def remove_sign_in_check() -> bool:
+    """Removes everything RAOfflineProxy adds to Windows: the Run entry, the
+    logon task (one admin prompt, when there is one) and the launcher in
+    %LOCALAPPDATA%. Start with Windows goes off, and starts don't put the check
+    back until it's turned on again. False when the admin prompt was declined;
+    the task is then left, and so is everything else."""
     import shutil
 
     _forget_task()
@@ -266,13 +310,33 @@ def disable() -> bool:
     _forget_task()
     _set_run_entry(False)
     shutil.rmtree(launcher_dir(), ignore_errors=True)
+    config_data = load_config()
+    config_data[SETTING_KEY] = False
+    config_data[CHECK_REMOVED_KEY] = True
+    save_config(config_data)
     return True
+
+
+def ensure_sign_in_check(root: Path) -> None:
+    """Installs the sign-in check when nothing runs at sign-in yet: the Run
+    entry, which needs no admin rights (only the logon task, from turning Start
+    with Windows on, also runs in Xbox full screen mode)."""
+    _write_location(root)
+    (launcher_dir() / "start.ps1").write_text(LAUNCHER_SCRIPT.lstrip(), encoding="utf-8")
+    if not task_exists() and not _run_entry_exists():
+        _set_run_entry(True)
 
 
 def refresh_location() -> None:
     """Called on every start, so the launcher's first guess is where the folder
-    is now, and the launcher itself is the current version's."""
+    is now, the launcher itself is the current version's, and the sign-in check
+    is in place."""
     root = portable_root()
-    if root is not None and is_enabled():
-        _write_location(root)
-        (launcher_dir() / "start.ps1").write_text(LAUNCHER_SCRIPT.lstrip(), encoding="utf-8")
+    if root is None:
+        return
+    config_data = load_config()
+    if check_removed(config_data):
+        return  # removed on purpose: back only when Start with Windows is turned on
+    if SETTING_KEY not in config_data:
+        _set_setting(is_enabled())  # before the check is added, which would read as "on"
+    ensure_sign_in_check(root)
