@@ -41,6 +41,8 @@ It is currently compatible with [MustardOS 2601.1 Funky Jacaranda](https://muos.
 
 The muOS target ships as a `.muxapp` package installed through Archive Manager and runs the same SDL menu used on the other Linux targets.
 
+> muOS 2606.0 Andromeda introduced Pickles, a new libretro frontend with native offline achievements support: it caches achievement data for games you have played online and sends unlocks when RetroAchievements is reachable again. Pickles talks to RetroAchievements directly, so RAOfflineProxy is not used with it. RAOfflineProxy still works with RetroArch on muOS.
+
 == ROCKNIX
 
 It is currently compatible with [ROCKNIX 20260701](https://github.com/ROCKNIX/distribution/releases/tag/20260701) or newer.
