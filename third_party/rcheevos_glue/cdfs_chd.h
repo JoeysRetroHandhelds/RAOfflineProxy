@@ -35,8 +35,8 @@ typedef struct cdfs_file_t
    int current_sector;
    int sector_buffer_valid;
    unsigned int current_sector_offset;
-   unsigned int size;
-   unsigned int pos;
+   uint64_t size;
+   uint64_t pos;
    uint8_t sector_buffer[2048];
 } cdfs_file_t;
 

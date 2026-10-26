@@ -8,6 +8,7 @@ compiles it). If no library can be loaded, the format tests are skipped rather
 than failing, so the suite stays green on machines without the native build.
 """
 
+import ctypes
 import hashlib
 import tempfile
 import unittest
@@ -197,6 +198,33 @@ class SevenZipTests(unittest.TestCase):
                 rom_browser.hash_candidates_for_manual_cache(broken),
                 [hashlib.md5(b"broken").hexdigest()],
             )
+
+
+class _CdfsFile(ctypes.Structure):
+    # Mirrors cdfs_file_t in third_party/rcheevos_glue/cdfs_chd.h.
+    _fields_ = [
+        ("track", ctypes.c_void_p),
+        ("first_sector", ctypes.c_int),
+        ("current_sector", ctypes.c_int),
+        ("sector_buffer_valid", ctypes.c_int),
+        ("current_sector_offset", ctypes.c_uint),
+        ("size", ctypes.c_uint64),
+        ("pos", ctypes.c_uint64),
+        ("sector_buffer", ctypes.c_uint8 * 2048),
+    ]
+
+
+@REQUIRE_LIB
+class ChdOver4GbTests(unittest.TestCase):
+    """A DVD CHD over 4 GiB (e.g. Suikoden III, 2,097,168 sectors) used to
+    wrap the 32-bit byte size and position, so rc_hash couldn't find SYSTEM.CNF."""
+
+    def test_seek_position_past_4gib_does_not_wrap(self) -> None:
+        library = rom_hashing.load_rchash()
+        library.cdfs_seek_sector.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+        file = _CdfsFile(first_sector=0, current_sector=-1)
+        library.cdfs_seek_sector(ctypes.byref(file), 2_097_160)
+        self.assertEqual(file.pos, 2_097_160 * 2048)
 
 
 class SupportedExtensionsTests(unittest.TestCase):
