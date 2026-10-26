@@ -1,10 +1,10 @@
 # Introduction
 
-> Current release stage: `v2.2.0-alpha1`. This is a public prerelease and has not gone through formal QA.
+> Current release stage: `v2.3.0-alpha1`. This is a public prerelease and has not gone through formal QA.
 
 ## What is RAOfflineProxy?
 
-RAOfflineProxy is a local proxy that acts between supported emulators and [RetroAchievements](https://retroachievements.org/) (RA). It currently supports RetroArch, Dolphin, PPSSPP, ARMSX2, WatermelonDS, and Flycast on **Android**, and **KNULLI**, **Onion**, **muOS**, **ROCKNIX**, **spruce**, and **Allium** for Linux.
+RAOfflineProxy is a local proxy that acts between supported emulators and [RetroAchievements](https://retroachievements.org/) (RA). It currently supports RetroArch, Dolphin, PPSSPP, ARMSX2, WatermelonDS, and Flycast on **Android**, and **KNULLI**, **Onion**, **muOS**, **ROCKNIX**, **spruce**, and **Allium** for Linux, plus an experimental portable build for **Windows**.
 
 Their achievement systems talk directly to RetroAchievements over the internet. This works great online, but the moment your connection drops, achievements stop unlocking and games may fail to load their achievement lists at all.
 

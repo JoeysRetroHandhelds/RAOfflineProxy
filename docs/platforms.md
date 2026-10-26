@@ -19,6 +19,15 @@ This page tracks which emulators and Linux handheld platforms `RAOfflineProxy` c
 |                       <img class="platforms-table__logo" src="/emucorex.svg" alt="EmuCoreX logo">                        | **[EmuCoreX](https://emucorex.web.app/)**                                                            | ✅ Supported release                                                                                                                        |
 |                                                                                                                          | **[NetherSX2](https://github.com/Trixarian/NetherSX2-patch)**                                        | ⏳ Awaiting the next NetherSX2 release, which ships [#343](https://github.com/Trixarian/NetherSX2-patch/pull/343); not yet verified         |
 
+## [Windows](/windows) (experimental)
+
+|                                                                                       | Emulator      | Status                    |
+| :-----------------------------------------------------------------------------------: | ------------- | ------------------------- |
+|        <img class="platforms-table__logo" src="/retroarch.png" alt="RetroArch logo">  | **RetroArch** | 🧪 Supported (experimental) |
+|          <img class="platforms-table__logo" src="/dolphin.png" alt="Dolphin logo">    | **Dolphin**   | 🧪 Supported (experimental) |
+|          <img class="platforms-table__logo" src="/pcsx2.webp" alt="PCSX2 logo">       | **PCSX2**     | 🧪 Supported (experimental) |
+|           <img class="platforms-table__logo" src="/ppsspp.png" alt="PPSSPP logo">     | **PPSSPP**    | 🧪 Detected, untested       |
+
 ## [Linux](/linux-support/)
 
 |                                                                                                          | Platform    | Status                                                                               |

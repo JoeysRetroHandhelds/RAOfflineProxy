@@ -18,6 +18,9 @@ hero:
     - theme: alt
       text: Linux Setup
       link: /linux-support/installation
+    - theme: alt
+      text: Windows Setup
+      link: /windows
 
 features:
   - icon: ⚙️
@@ -117,6 +120,27 @@ features:
         <div class="supported-platforms__item">
           <img class="supported-platforms__logo--rounded" src="/darkos.png" alt="dArkOS logo">
           <span>dArkOS</span>
+        </div>
+      </div>
+    </div>
+    <div class="supported-platforms__group">
+      <p class="supported-platforms__label">Windows <em class="supported-platforms__tag">experimental</em></p>
+      <div class="supported-platforms__logos">
+        <div class="supported-platforms__item">
+          <img src="/retroarch.png" alt="RetroArch logo">
+          <span>RetroArch</span>
+        </div>
+        <div class="supported-platforms__item">
+          <img src="/dolphin.png" alt="Dolphin logo">
+          <span>Dolphin</span>
+        </div>
+        <div class="supported-platforms__item">
+          <img src="/pcsx2.webp" alt="PCSX2 logo">
+          <span>PCSX2</span>
+        </div>
+        <div class="supported-platforms__item">
+          <img src="/ppsspp.png" alt="PPSSPP logo">
+          <span>PPSSPP</span>
         </div>
       </div>
     </div>

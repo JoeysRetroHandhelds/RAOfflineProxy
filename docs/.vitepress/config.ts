@@ -75,6 +75,10 @@ export default defineConfig({
         ],
       },
       {
+        text: 'Windows (experimental)',
+        link: '/windows'
+      },
+      {
         text: 'Help',
         items: [
           { text: 'Troubleshooting / FAQ', link: '/troubleshooting' },

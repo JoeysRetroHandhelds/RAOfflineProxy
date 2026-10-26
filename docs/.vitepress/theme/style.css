@@ -31,7 +31,7 @@
 }
 
 .VPNavBarTitle .title::after {
-  content: 'v2.2.0-alpha1';
+  content: 'v2.3.0-alpha1';
   grid-column: 2;
   grid-row: 2;
   margin-top: -1.4rem;
@@ -142,7 +142,9 @@
 .VPHero .actions .VPButton[href="/installation"]::before,
 .VPHero .actions .VPButton[href="/installation.html"]::before,
 .VPHero .actions .VPButton[href="/linux-support/installation"]::before,
-.VPHero .actions .VPButton[href="/linux-support/installation.html"]::before {
+.VPHero .actions .VPButton[href="/linux-support/installation.html"]::before,
+.VPHero .actions .VPButton[href="/windows"]::before,
+.VPHero .actions .VPButton[href="/windows.html"]::before {
   content: '';
   display: inline-block;
   width: 20px;
@@ -162,4 +164,14 @@
 .VPHero .actions .VPButton[href="/linux-support/installation"]::before,
 .VPHero .actions .VPButton[href="/linux-support/installation.html"]::before {
   background-image: url('/linux.png');
+}
+
+.VPHero .actions .VPButton[href="/windows"]::before,
+.VPHero .actions .VPButton[href="/windows.html"]::before {
+  background-image: url('/windows.svg');
+}
+
+.VPHero .actions .action:first-child {
+  flex-basis: 100%;
+  margin-bottom: 14px;
 }
