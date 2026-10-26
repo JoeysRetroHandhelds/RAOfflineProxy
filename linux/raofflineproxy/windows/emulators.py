@@ -77,10 +77,9 @@ def config_for_exe(kind: EmulatorKind, exe: Path) -> Path:
             return documents / "Config"
         return _appdata() / "Dolphin Emulator" / "Config"
     if kind is PCSX2:
-        # PCSX2 is portable when portable.ini (or portable.txt) is beside the exe.
-        if (folder / "portable.ini").exists() or (folder / "portable.txt").exists():
-            return folder / "inis" / "PCSX2.ini"
-        return _documents() / "PCSX2" / "inis" / "PCSX2.ini"
+        # Before PCSX2's first run there's no ini yet: Documents, where an
+        # installed PCSX2 will create it, so it still shows on the Emulators screen.
+        return windows_paths.pcsx2_ini(folder) or windows_paths.pcsx2_documents_ini()
     # PPSSPP uses a memstick folder beside the exe unless installed.txt says it
     # was installed, in which case it uses Documents\PPSSPP.
     if (folder / "memstick").is_dir() and not (folder / "installed.txt").exists():

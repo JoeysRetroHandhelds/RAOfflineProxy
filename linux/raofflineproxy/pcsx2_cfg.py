@@ -78,11 +78,9 @@ def build_patched_pcsx2_ini(content: str, config_data: dict) -> str:
 
 
 def build_reverted_pcsx2_ini(content: str, previous: dict) -> str:
-    # PCSX2 writes no Host key until one is set, so a captured None removes it.
+    # A captured None (the key wasn't there) removes it, back to PCSX2's own
+    # default: no Host until one is set, and hardcore on without ChallengeMode.
     return _update_achievements_section(
         content,
-        {
-            HOST_KEY: previous.get(HOST_KEY),
-            HARDCORE_KEY: previous.get(HARDCORE_KEY) or "false",
-        },
+        {HOST_KEY: previous.get(HOST_KEY), HARDCORE_KEY: previous.get(HARDCORE_KEY)},
     )

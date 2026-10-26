@@ -52,6 +52,17 @@ class Pcsx2CfgTests(unittest.TestCase):
         pcsx2_cfg.revert_pcsx2_ini(self.config, patch_state["pcsx2_previous"])
         self.assertEqual(self.ini.read_text(encoding="utf-8"), PCSX2_INI)
 
+    def test_reverting_leaves_out_a_challenge_mode_that_wasnt_there(self) -> None:
+        """PCSX2 defaults to hardcore on when ChallengeMode is missing, so
+        restoring "false" would change the user's setting."""
+        original = PCSX2_INI.replace("ChallengeMode = true\n", "")
+        self.ini.write_text(original, encoding="utf-8")
+        patch_state: dict = {}
+        pcsx2_cfg.store_pcsx2_previous(patch_state, pcsx2_cfg.patch_pcsx2_ini(self.config))
+        self.assertEqual(self.values()["ChallengeMode"], "false")
+        pcsx2_cfg.revert_pcsx2_ini(self.config, patch_state["pcsx2_previous"])
+        self.assertEqual(self.ini.read_text(encoding="utf-8"), original)
+
     def test_patching_twice_keeps_the_original_values(self) -> None:
         patch_state: dict = {}
         pcsx2_cfg.store_pcsx2_previous(patch_state, pcsx2_cfg.patch_pcsx2_ini(self.config))

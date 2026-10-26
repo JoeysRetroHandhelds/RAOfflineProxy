@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import struct
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -421,8 +422,6 @@ def parse_pcsx2_gamelist_cache(data: bytes) -> dict[str, Path]:
     rather than a misread. Each entry: path, serial, title, title_sort and
     title_en (u32 length + UTF-8 each), then u8 type, u8 region, u64 size,
     u64 modified time, u32 CRC and u8 compatibility, all little-endian."""
-    import struct
-
     if len(data) < 8 or struct.unpack_from("<II", data) != (PCSX2_CACHE_SIGNATURE, PCSX2_CACHE_VERSION):
         return {}
     files: dict[str, Path] = {}

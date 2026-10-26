@@ -116,6 +116,33 @@ class WindowsConfigPathTests(unittest.TestCase):
         with self._on_windows(False):
             self.assertNotEqual(config.detect_retroarch_cfg(), str(cfg))
 
+    # PCSX2: config_for_exe (what the Emulators screen records for a found exe).
+
+    def _pcsx2_exe(self) -> Path:
+        return self._touch(self.root / "pcsx2" / "pcsx2-qt.exe")
+
+    def test_pcsx2_portable_copy_uses_its_own_inis_folder(self) -> None:
+        from linux.raofflineproxy.windows import emulators
+
+        exe = self._pcsx2_exe()
+        portable = self._touch(exe.parent / "inis" / "PCSX2.ini")
+        self._touch(self.home / "Documents" / "PCSX2" / "inis" / "PCSX2.ini")
+        self.assertEqual(emulators.config_for_exe(emulators.PCSX2, exe), portable)
+
+    def test_pcsx2_installed_copy_uses_documents(self) -> None:
+        from linux.raofflineproxy.windows import emulators
+
+        documents = self._touch(self.home / "Documents" / "PCSX2" / "inis" / "PCSX2.ini")
+        self.assertEqual(emulators.config_for_exe(emulators.PCSX2, self._pcsx2_exe()), documents)
+
+    def test_pcsx2_before_its_first_run_still_points_at_documents(self) -> None:
+        from linux.raofflineproxy.windows import emulators
+
+        self.assertEqual(
+            emulators.config_for_exe(emulators.PCSX2, self._pcsx2_exe()),
+            self.home / "Documents" / "PCSX2" / "inis" / "PCSX2.ini",
+        )
+
     def test_detect_dolphin_config_dir_prefers_documents_when_present(self) -> None:
         documents_config = self.home / "Documents" / "Dolphin Emulator" / "Config"
         documents_config.mkdir(parents=True)
