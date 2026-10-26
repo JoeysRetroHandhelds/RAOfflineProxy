@@ -180,6 +180,39 @@ class LinuxProxyCacheKeyTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_offline_achievementsets_serves_another_disc_of_the_same_game(self) -> None:
+        """MGS3 Disc 3: its gameid is cached, but the achievement sets only under Disc 1's hash."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = storage.Storage(database_path=Path(temp_dir) / "test.sqlite3")
+            runtime = object.__new__(proxy_service.ProxyRuntimeServer)
+            runtime.storage = store
+            try:
+                store.upsert_cache(cache_keys.game_id("disc3hash"), '{"Success":true,"GameID":2831}')
+                store.upsert_cache(
+                    cache_keys.achievementsets("disc1hash", "misantronic"),
+                    '{"Success":true,"GameId":2831,"Title":"Metal Gear Solid 3"}',
+                )
+                store.upsert_cache(
+                    cache_keys.achievementsets("otherhash", "misantronic"),
+                    '{"Success":true,"GameId":10701,"Title":"Tetris"}',
+                )
+
+                response = runtime.handle_offline_request(
+                    "/dorequest.php?r=achievementsets&u=Misantronic&t=token&m=disc3hash",
+                    "",
+                    "achievementsets",
+                )
+                self.assertIn(b'"GameId":2831', response)
+
+                other_user = runtime.handle_offline_request(
+                    "/dorequest.php?r=achievementsets&u=someoneelse&t=token&m=disc3hash",
+                    "",
+                    "achievementsets",
+                )
+                self.assertIn(b'"Error":"no cached response"', other_user)
+            finally:
+                store.close()
+
     def test_offline_startsession_prefers_cached_live_response(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             store = storage.Storage(database_path=Path(temp_dir) / "test.sqlite3")
