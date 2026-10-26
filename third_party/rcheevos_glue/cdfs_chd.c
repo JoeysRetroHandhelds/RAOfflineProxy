@@ -81,7 +81,7 @@ void cdfs_seek_sector(cdfs_file_t* file, unsigned int sector)
          file->sector_buffer_valid = 0;
       }
 
-      file->pos                    = sector * 2048;
+      file->pos                    = (uint64_t)sector * 2048;
       file->current_sector_offset  = 0;
    }
 }
@@ -119,7 +119,7 @@ int cdfs_open_file(cdfs_file_t* file, cdfs_track_t* track, const char* path)
    if (!path && file->track->stream_sector_size)
    {
       file->first_sector = 0;
-      file->size         = (unsigned int)((chdstream_get_size(
+      file->size         = (uint64_t)((chdstream_get_size(
                file->track->stream) / file->track->stream_sector_size)
          * 2048);
       return 1;
