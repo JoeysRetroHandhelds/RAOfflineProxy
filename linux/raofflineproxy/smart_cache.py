@@ -3,13 +3,14 @@ from __future__ import annotations
 import json
 import logging
 import re
+import struct
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from . import cache_budget, cache_queue, rom_browser
 from .auth import resolve_credentials
-from .config import detect_dolphin_config_dir, detect_ppsspp_ini
+from .config import detect_dolphin_config_dir, detect_pcsx2_ini, detect_ppsspp_ini
 from .platform import read_retroarch_cfg_values, resolve_retroarch_cfg
 from .rom_browser import (
     QueuedRomOutcome,
@@ -36,6 +37,9 @@ DOLPHIN_WII_DISC_TITLE_HIGH_ID = "00010000"
 # NAND high ID instead of the disc-title one above.
 DOLPHIN_WII_WAD_TITLE_HIGH_ID = "00010001"
 DOLPHIN_DISC_ROM_SUFFIXES = (".rvz", ".wia", ".iso", ".gcm")
+# PCSX2's gamelist.cache: "GLCE", then this version (PCSX2 2.x), then entries.
+PCSX2_CACHE_SIGNATURE = 0x45434C47
+PCSX2_CACHE_VERSION = 34
 # .wad (WAD installer package) has no disc header; its game code lives in the
 # TMD's title ID instead. Only the near-universal RSA-2048 signature type is
 # handled — every commercial Wii TMD/ticket uses it.
@@ -315,6 +319,7 @@ def load_content_history_paths(config_data: dict) -> list[Path]:
     for extra_path in (
         *_load_ppsspp_recent_paths(config_data),
         *_load_dolphin_recent_paths(config_data),
+        *_load_pcsx2_recent_paths(config_data),
     ):
         normalized = str(extra_path)
         if normalized in seen:
@@ -375,6 +380,71 @@ def _find_history_source(config_data: dict) -> Path | None:
         return dolphin_ini
 
     return None
+
+
+def _load_pcsx2_recent_paths(config_data: dict) -> list[Path]:
+    """PCSX2's played games, most recent first: playtime.dat (next to
+    PCSX2.ini) has each game's serial and when it was last played, and
+    gamelist.cache (in the cache folder beside inis) maps serials to files."""
+    ini_path = detect_pcsx2_ini(config_data)
+    if ini_path is None:
+        return []
+    inis = Path(ini_path).parent
+    try:
+        playtime = (inis / "playtime.dat").read_text(encoding="utf-8", errors="replace")
+        cache = (inis.parent / "cache" / "gamelist.cache").read_bytes()
+    except OSError:
+        return []
+    files = parse_pcsx2_gamelist_cache(cache)
+    paths = []
+    for serial in parse_pcsx2_playtime(playtime):
+        path = files.get(serial)
+        if path is not None and path.exists():
+            paths.append(path)
+    return paths
+
+
+def parse_pcsx2_playtime(content: str) -> list[str]:
+    """Serials from playtime.dat, most recently played first. Each line is
+    "<serial> <total seconds> <last played, unix time>", padded with spaces."""
+    played: list[tuple[int, str]] = []
+    for line in content.splitlines():
+        fields = line.split()
+        if len(fields) != 3 or not fields[2].isdigit() or int(fields[2]) == 0:
+            continue
+        played.append((int(fields[2]), fields[0]))
+    return [serial for _, serial in sorted(played, reverse=True)]
+
+
+def parse_pcsx2_gamelist_cache(data: bytes) -> dict[str, Path]:
+    """Serial -> disc file from gamelist.cache. Only the layout of the known
+    version is read; another one (a PCSX2 that changed it) gives nothing
+    rather than a misread. Each entry: path, serial, title, title_sort and
+    title_en (u32 length + UTF-8 each), then u8 type, u8 region, u64 size,
+    u64 modified time, u32 CRC and u8 compatibility, all little-endian."""
+    if len(data) < 8 or struct.unpack_from("<II", data) != (PCSX2_CACHE_SIGNATURE, PCSX2_CACHE_VERSION):
+        return {}
+    files: dict[str, Path] = {}
+    offset = 8
+    try:
+        while offset < len(data):
+            strings = []
+            for _ in range(5):
+                (length,) = struct.unpack_from("<I", data, offset)
+                offset += 4
+                if offset + length > len(data):
+                    return files
+                strings.append(data[offset : offset + length].decode("utf-8", errors="replace"))
+                offset += length
+            offset += 1 + 1 + 8 + 8 + 4 + 1
+            if offset > len(data):
+                return files
+            path, serial = strings[0], strings[1]
+            if serial and path:
+                files.setdefault(serial, Path(path))
+    except struct.error:
+        pass
+    return files
 
 
 def _load_ppsspp_recent_paths(config_data: dict) -> list[Path]:

@@ -98,6 +98,19 @@ def dolphin_config_dir() -> Path | None:
     return None
 
 
+def pcsx2_documents_ini() -> Path:
+    return Path.home() / "Documents" / "PCSX2" / "inis" / "PCSX2.ini"
+
+
+def pcsx2_ini(folder: Path | None = None) -> Path | None:
+    """The PCSX2.ini that exists: a portable copy's own inis folder beside
+    pcsx2-qt.exe (when folder is that exe's folder), else Documents/PCSX2,
+    where an installed PCSX2 keeps it."""
+    candidates = [folder / "inis" / "PCSX2.ini"] if folder is not None else []
+    candidates.append(pcsx2_documents_ini())
+    return next((candidate for candidate in candidates if candidate.exists()), None)
+
+
 def ppsspp_ini() -> Path | None:
     """Installed PPSSPP keeps its memstick under Documents/PPSSPP. The portable
     zip uses a memstick folder beside the exe and is set via ppsspp_ini."""

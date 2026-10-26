@@ -45,7 +45,8 @@ class EmulatorKind:
 RETROARCH = EmulatorKind("retroarch", "RetroArch", ("retroarch.exe",), "retroarch_cfg")
 DOLPHIN = EmulatorKind("dolphin", "Dolphin", ("dolphin.exe",), "dolphin_config_dir")
 PPSSPP = EmulatorKind("ppsspp", "PPSSPP", ("ppssppwindows64.exe", "ppssppwindows.exe"), "ppsspp_ini")
-KINDS = (RETROARCH, DOLPHIN, PPSSPP)
+PCSX2 = EmulatorKind("pcsx2", "PCSX2", ("pcsx2-qt.exe",), "pcsx2_ini")
+KINDS = (RETROARCH, DOLPHIN, PPSSPP, PCSX2)
 
 SCAN_DEPTH = 3
 SKIP_DIRS = {"windows", "$recycle.bin", "system volume information", "programdata", "node_modules", ".git"}
@@ -75,6 +76,10 @@ def config_for_exe(kind: EmulatorKind, exe: Path) -> Path:
         if documents.is_dir():
             return documents / "Config"
         return _appdata() / "Dolphin Emulator" / "Config"
+    if kind is PCSX2:
+        # Before PCSX2's first run there's no ini yet: Documents, where an
+        # installed PCSX2 will create it, so it still shows on the Emulators screen.
+        return windows_paths.pcsx2_ini(folder) or windows_paths.pcsx2_documents_ini()
     # PPSSPP uses a memstick folder beside the exe unless installed.txt says it
     # was installed, in which case it uses Documents\PPSSPP.
     if (folder / "memstick").is_dir() and not (folder / "installed.txt").exists():
@@ -94,7 +99,7 @@ def _registry_install_dirs() -> list[Path]:
         (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
         (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
     )
-    names = ("retroarch", "dolphin", "ppsspp")
+    names = ("retroarch", "dolphin", "ppsspp", "pcsx2")
     for hive, path in roots:
         try:
             root = winreg.OpenKey(hive, path)

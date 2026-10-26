@@ -56,6 +56,8 @@ RETROARCH_CFG = (
     'video_fullscreen = "false"\n'
 )
 DOLPHIN_INI = "[Achievements]\r\nEnabled = True\r\nHardcoreEnabled = True\r\nUsername = testuser\r\n"
+# As PCSX2 writes it (LF, no Host until one is set).
+PCSX2_INI = "[UI]\nSettingsVersion = 1\n\n[Achievements]\nEnabled = true\nChallengeMode = true\nUsername = testuser\n\n[Filenames]\nBIOS = bios.bin\n"
 
 
 def cfg_value(content: str, key: str) -> str | None:
@@ -124,6 +126,7 @@ class PortableFolder:
         self.retroarch_cfg = root / "RetroArch" / "retroarch.cfg"
         self.dolphin_config = root / "Dolphin" / "User" / "Config"
         self.dolphin_ini = self.dolphin_config / "RetroAchievements.ini"
+        self.pcsx2_ini = root / "PCSX2" / "inis" / "PCSX2.ini"
         self.rom = root / "roms" / "mslug.7z"
         self.env = {
             **os.environ,
@@ -144,6 +147,8 @@ class PortableFolder:
         self.retroarch_cfg.parent.mkdir(parents=True, exist_ok=True)
         self.retroarch_cfg.write_bytes(RETROARCH_CFG.encode())
         self.dolphin_ini.write_bytes(DOLPHIN_INI.encode())
+        self.pcsx2_ini.parent.mkdir(parents=True, exist_ok=True)
+        self.pcsx2_ini.write_bytes(PCSX2_INI.encode())
         shutil.copy(REPO_ROOT / "linux" / "tests" / "fixtures" / "mslug.7z", self.rom)
         self.write_config(
             {
@@ -151,11 +156,13 @@ class PortableFolder:
                 "proxy_port": PROXY_PORT,
                 "retroarch_cfg": str(self.retroarch_cfg),
                 "dolphin_config_dir": str(self.dolphin_config),
+                "pcsx2_ini": str(self.pcsx2_ini),
                 "rom_root": str(self.rom.parent),
                 "emulators_found_on": platform.node(),
                 "windows_emulators": {
                     "retroarch": {"exe": "test", "config": str(self.retroarch_cfg), "enabled": True},
                     "dolphin": {"exe": "test", "config": str(self.dolphin_config), "enabled": True},
+                    "pcsx2": {"exe": "test", "config": str(self.pcsx2_ini), "enabled": True},
                 },
             }
         )
@@ -354,10 +361,14 @@ class TestProxyLifecycle:
         assert cfg_value(cfg, "cheevos_custom_host") == f"127.0.0.1:{PROXY_PORT}"
         assert cfg_value(cfg, "cheevos_hardcore_mode_enable") == "false"
         assert f"HostUrl = 127.0.0.1:{PROXY_PORT}" in installed.dolphin_ini.read_text()
+        pcsx2 = installed.pcsx2_ini.read_text()
+        assert f"Host = 127.0.0.1:{PROXY_PORT}" in pcsx2
+        assert "ChallengeMode = false" in pcsx2  # PCSX2's hardcore, which the proxy doesn't do
 
     def test_stop_proxy_restores_configs_byte_for_byte(self, installed):
         retroarch_before = installed.retroarch_cfg.read_bytes()
         dolphin_before = installed.dolphin_ini.read_bytes()
+        pcsx2_before = installed.pcsx2_ini.read_bytes()
         installed.cli("start-proxy", check=True)
         result = installed.cli("stop-proxy", check=True)
         assert "Reverted retroarch.cfg" in result.stdout
@@ -365,6 +376,7 @@ class TestProxyLifecycle:
         # LF RetroArch config and CRLF Dolphin ini both come back unchanged.
         assert installed.retroarch_cfg.read_bytes() == retroarch_before
         assert installed.dolphin_ini.read_bytes() == dolphin_before
+        assert installed.pcsx2_ini.read_bytes() == pcsx2_before
 
     def test_stop_is_graceful(self, installed):
         installed.cli("start-proxy", check=True)
@@ -385,6 +397,17 @@ class TestProxyLifecycle:
 
 
 class TestEmulatorSelection:
+    def test_a_turned_off_pcsx2_is_left_alone(self, installed):
+        installed.app_python(
+            "from raofflineproxy import config; from raofflineproxy.windows import emulators as w; "
+            "c = config.load_config(); "
+            "c['windows_emulators']['pcsx2']['enabled'] = False; "
+            "w.apply_state(c); config.save_config(c)"
+        )
+        before = installed.pcsx2_ini.read_bytes()
+        installed.cli("start-proxy", check=True)
+        assert installed.pcsx2_ini.read_bytes() == before
+
     def test_a_turned_off_emulator_is_left_alone(self, installed):
         installed.app_python(
             "from pathlib import Path; from raofflineproxy import config; from raofflineproxy.windows import emulators as w; "
